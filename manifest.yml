@@ -1,0 +1,6 @@
+---
+  buildpack: binary_buildpack
+  command: bin/azurefilebroker --logLevel=debug --dataDir=./ --tenanID='' --clientID='' --clientSecret='' --defaultSubscriptionID='' --defaultResourceGroupName='' --allowCreateStorageAccount=false --allowDeleteFileShare=true
+  env:
+    USERNAME: admin
+    PASSWORD: admin
