@@ -105,8 +105,8 @@ var environment = flag.String(
 	"The environment for Azure Management Service. AzureCloud, AzureChinaCloud, AzureUSGovernment, AzureGermanCloud or AzureStack.",
 )
 
-var tenanID = flag.String(
-	"tenanID",
+var tenantID = flag.String(
+	"tenantID",
 	"",
 	"[REQUIRED] - The tenant id for your service principal.",
 )
@@ -293,7 +293,7 @@ func createServer(logger lager.Logger) ifrit.Runner {
 		"Options": mount.Options,
 	})
 
-	azureConfig := azurefilebroker.NewAzureConfig(*environment, *tenanID, *clientID, *clientSecret, *defaultSubscriptionID, *defaultResourceGroupName)
+	azureConfig := azurefilebroker.NewAzureConfig(*environment, *tenantID, *clientID, *clientSecret, *defaultSubscriptionID, *defaultResourceGroupName)
 	logger.Info("createServer.cloud.azureConfig", lager.Data{
 		"Environment":                         azureConfig.Environment,
 		"TenanID":                             azureConfig.TenanID,
