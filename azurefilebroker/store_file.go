@@ -90,6 +90,14 @@ func (s *fileStore) RetrieveServiceInstance(id string) (ServiceInstance, error) 
 	return requestedServiceInstance, nil
 }
 
+func (s *fileStore) GetLockForUpdate(_ string, _ int) error {
+	return nil
+}
+
+func (s *fileStore) ReleaseLockForUpdate(_ string) error {
+	return nil
+}
+
 func (s *fileStore) RetrieveBindingDetails(id string) (brokerapi.BindDetails, error) {
 	requestedBindingInstance, found := s.dynamicState.ShareMap[id]
 	if !found {
@@ -142,5 +150,5 @@ func (s *fileStore) IsServiceInstanceConflict(id string, instance ServiceInstanc
 }
 
 func (s *fileStore) IsBindingConflict(id string, details brokerapi.BindDetails) bool {
-	return IsBindingConflict(s, id, details)
+	return isBindingConflict(s, id, details)
 }

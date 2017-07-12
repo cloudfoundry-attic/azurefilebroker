@@ -93,10 +93,7 @@ var Environments = map[string]Environment{
 
 type StorageAccount struct {
 	logger                   lager.Logger
-	Environment              string
-	TenanID                  string
-	ClientID                 string
-	ClientSecret             string
+	cloudConfig				 *CloudConfig
 	SubscriptionID           string
 	ResourceGroupName        string
 	StorageAccountName       string
@@ -113,14 +110,11 @@ type StorageAccount struct {
 	storageFileServiceClient *file.Client
 }
 
-func NewStorageAccount(logger lager.Logger, environment, tenantID, clientID, clientSecret string, configuration Configuration) (*StorageAccount, error) {
+func NewStorageAccount(logger lager.Logger, cloudConfig *CloudConfig, configuration Configuration) (*StorageAccount, error) {
 	logger = logger.Session("storage-account").WithData(lager.Data{"StorageAccountName": configuration.StorageAccountName})
 	storageAccount := StorageAccount{
 		logger:                   logger,
-		Environment:              environment,
-		TenanID:                  tenantID,
-		ClientID:                 clientID,
-		ClientSecret:             clientSecret,
+		cloudConfig:              cloudConfig,
 		SubscriptionID:           configuration.SubscriptionID,
 		ResourceGroupName:        configuration.ResourceGroupName,
 		StorageAccountName:       configuration.StorageAccountName,
@@ -179,24 +173,28 @@ func (account *StorageAccount) initManagementClient() error {
 	logger.Info("start")
 	defer logger.Info("end")
 
-	oauthConfig, err := adal.NewOAuthConfig(Environments[account.Environment].ActiveDirectoryEndpointURL, account.TenanID)
+	environment := account.cloudConfig.Azure.Environment
+	tenantID := account.cloudConfig.Azure.TenanID
+	clientID := account.cloudConfig.Azure.ClientID
+	clientSecret := account.cloudConfig.Azure.ClientSecret
+	oauthConfig, err := adal.NewOAuthConfig(Environments[environment].ActiveDirectoryEndpointURL, tenantID)
 	if err != nil {
 		logger.Error("newO-auth-config", err, lager.Data{
-			"Environment":                account.Environment,
-			"ActiveDirectoryEndpointURL": Environments[account.Environment].ActiveDirectoryEndpointURL,
-			"TenanID":                    account.TenanID,
+			"Environment":                environment,
+			"ActiveDirectoryEndpointURL": Environments[environment].ActiveDirectoryEndpointURL,
+			"TenanID":                    tenantID,
 		})
 		return fmt.Errorf("Error in initManagementClient: %v", err)
 	}
 
-	resourceManagerEndpointURL := Environments[account.Environment].ResourceManagerEndpointURL
-	spt, err := adal.NewServicePrincipalToken(*oauthConfig, account.ClientID, account.ClientSecret, resourceManagerEndpointURL)
+	resourceManagerEndpointURL := Environments[environment].ResourceManagerEndpointURL
+	spt, err := adal.NewServicePrincipalToken(*oauthConfig, clientID, clientSecret, resourceManagerEndpointURL)
 	if err != nil {
 		logger.Error("newO-service-principal-token", err, lager.Data{
-			"Environment":                account.Environment,
+			"Environment":                environment,
 			"resourceManagerEndpointURL": resourceManagerEndpointURL,
-			"TenanID":                    account.TenanID,
-			"ClientID":                   account.ClientID,
+			"TenanID":                    tenantID,
+			"ClientID":                   clientID,
 		})
 		return fmt.Errorf("Error in initManagementClient: %v", err)
 	}
@@ -357,7 +355,8 @@ func (account *StorageAccount) initFileServiceClient() error {
 		}
 	}
 
-	apiVersion := Environments[account.Environment].APIVersions.Storage
+	environment := account.cloudConfig.Azure.Environment
+	apiVersion := Environments[environment].APIVersions.Storage
 	client, err := file.NewClient(account.StorageAccountName, account.accessKey, account.baseURL, apiVersion, account.UseHTTPS)
 	if err != nil {
 		logger.Error("new-file-client", err, lager.Data{

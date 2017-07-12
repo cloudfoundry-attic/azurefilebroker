@@ -6,7 +6,12 @@ import (
 	"github.com/pivotal-cf/brokerapi"
 )
 
-//go:generate counterfeiter -o ../azurefilebroker/fake_store.go . Store
+type DataLock interface {
+	GetLockForUpdate(lockName string, seconds int) error
+	ReleaseLockForUpdate(lockName string) error
+}
+
+//go:generate counterfeiter -o ./azurefilebrokerfakes/fake_store.go src/github.com/AbelHu/azurefilebroker/azurefilebroker/Store Store
 type Store interface {
 	RetrieveServiceInstance(id string) (ServiceInstance, error)
 	RetrieveBindingDetails(id string) (brokerapi.BindDetails, error)
@@ -25,10 +30,20 @@ type Store interface {
 	Restore(logger lager.Logger) error
 	Save(logger lager.Logger) error
 	Cleanup() error
+
+	DataLock
 }
 
 func NewStore(logger lager.Logger, dbDriver, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert, fileName string) Store {
-	return NewFileStore(fileName, &ioutilshim.IoutilShim{})
+	if dbDriver != "" {
+		store, err := NewSqlStore(logger, dbDriver, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert)
+		if err != nil {
+			logger.Fatal("create-sql-store", err)
+		}
+		return store
+	} else {
+		return NewFileStore(fileName, &ioutilshim.IoutilShim{})
+	}
 }
 
 // Utility methods for storing bindings with secrets stripped out
@@ -41,7 +56,7 @@ func isServiceInstanceConflict(s Store, id string, _ ServiceInstance) bool {
 	return false
 }
 
-func IsBindingConflict(s Store, id string, _ brokerapi.BindDetails) bool {
+func isBindingConflict(s Store, id string, _ brokerapi.BindDetails) bool {
 	if _, err := s.RetrieveBindingDetails(id); err == nil {
 		return true
 	}

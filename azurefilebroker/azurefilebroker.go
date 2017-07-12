@@ -119,7 +119,6 @@ type ServiceInstance struct {
 	PlanID                  string               `json:"plan_id"`
 	OrganizationGUID        string               `json:"organization_guid"`
 	SpaceGUID               string               `json:"space_guid"`
-	Environment             string               `json:"environment"`
 	SubscriptionID          string               `json:"subscriptionID"`
 	ResourceGroupName       string               `json:"resourceGroupName"`
 	StorageAccountName      string               `json:"storage_account_name"`
@@ -240,7 +239,6 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 		details.PlanID,
 		details.OrganizationGUID,
 		details.SpaceGUID,
-		storageAccount.Environment,
 		storageAccount.SubscriptionID,
 		storageAccount.ResourceGroupName,
 		storageAccount.StorageAccountName,
@@ -273,10 +271,7 @@ func (b *Broker) getStorageAccount(logger lager.Logger, configuration Configurat
 
 	storageAccount, err := NewStorageAccount(
 		logger,
-		b.config.cloud.Azure.Environment,
-		b.config.cloud.Azure.TenanID,
-		b.config.cloud.Azure.ClientID,
-		b.config.cloud.Azure.ClientSecret,
+		&b.config.cloud,
 		configuration)
 	if err != nil {
 		return nil, err
@@ -324,10 +319,7 @@ func (b *Broker) Deprovision(context context.Context, instanceID string, details
 	if serviceInstance.IsCreatedStorageAccount && b.config.cloud.Control.AllowDeleteStorageAccount {
 		storageAccount, err := NewStorageAccount(
 			logger,
-			b.config.cloud.Azure.Environment,
-			b.config.cloud.Azure.TenanID,
-			b.config.cloud.Azure.ClientID,
-			b.config.cloud.Azure.ClientSecret,
+			&b.config.cloud,
 			Configuration{
 				SubscriptionID:     serviceInstance.SubscriptionID,
 				ResourceGroupName:  serviceInstance.ResourceGroupName,
@@ -408,7 +400,7 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 		return brokerapi.Binding{}, err
 	}
 
-	storageAccount, err := b.checkFileShare(logger, &serviceInstance, shareName)
+	storageAccount, err := b.handleBindShare(logger, &serviceInstance, shareName)
 	if err != nil {
 		return brokerapi.Binding{}, err
 	}
@@ -469,17 +461,14 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 	return ret, nil
 }
 
-func (b *Broker) checkFileShare(logger lager.Logger, serviceInstance *ServiceInstance, shareName string) (*StorageAccount, error) {
-	logger = logger.Session("check-file-share").WithData(lager.Data{"share": shareName})
+func (b *Broker) handleBindShare(logger lager.Logger, serviceInstance *ServiceInstance, shareName string) (*StorageAccount, error) {
+	logger = logger.Session("handle-bind-share").WithData(lager.Data{"share": shareName})
 	logger.Info("start")
 	defer logger.Info("end")
 
 	storageAccount, err := NewStorageAccount(
 		logger,
-		b.config.cloud.Azure.Environment,
-		b.config.cloud.Azure.TenanID,
-		b.config.cloud.Azure.ClientID,
-		b.config.cloud.Azure.ClientSecret,
+		&b.config.cloud,
 		Configuration{
 			SubscriptionID:     serviceInstance.SubscriptionID,
 			ResourceGroupName:  serviceInstance.ResourceGroupName,
@@ -578,53 +567,62 @@ func (b *Broker) Unbind(context context.Context, instanceID string, bindingID st
 		return brokerapi.ErrRawParamsInvalid
 	}
 
-	shareName := bindOptions.FileShareName
-	if fileShare, ok := serviceInstance.FileShareList[shareName]; ok {
-		fileShare.Count--
-		serviceInstance.FileShareList[shareName] = fileShare
-
-		if serviceInstance.FileShareList[shareName].Count == 0 {
-			if serviceInstance.FileShareList[shareName].IsCreated && b.config.cloud.Control.AllowDeleteFileShare {
-				storageAccount, err := NewStorageAccount(
-					logger,
-					b.config.cloud.Azure.Environment,
-					b.config.cloud.Azure.TenanID,
-					b.config.cloud.Azure.ClientID,
-					b.config.cloud.Azure.ClientSecret,
-					Configuration{
-						SubscriptionID:     serviceInstance.SubscriptionID,
-						ResourceGroupName:  serviceInstance.ResourceGroupName,
-						StorageAccountName: serviceInstance.StorageAccountName,
-						UseHTTPS:           strconv.FormatBool(serviceInstance.UseHTTPS),
-					})
-				if err != nil {
-					return err
-				}
-
-				if err := storageAccount.DeleteFileShare(shareName); err != nil {
-					logger.Error("delete-file-share", err, lager.Data{"share": shareName})
-					return fmt.Errorf("Faied to delete the file share %q in the storage account %q: %v", shareName, serviceInstance.StorageAccountName, err)
-				}
-			}
-
-			logger.Debug("deleting-share-from-share-list", lager.Data{"shareName": shareName})
-			delete(serviceInstance.FileShareList, shareName)
-			logger.Debug("delete-share-from-share-list", lager.Data{"serviceInstance": serviceInstance})
-		}
-
-		logger.Debug("updating-service-instance", lager.Data{"instanceID": instanceID, "serviceInstance": serviceInstance})
-		if err := b.store.UpdateServiceInstance(instanceID, serviceInstance); err != nil {
-			return fmt.Errorf("Faied to update service instance in the store for %q: %v", instanceID, err)
-		}
-		logger.Debug("updated-service-instance", lager.Data{"instanceID": instanceID})
-	} else {
-		logger.Error("unbind", fmt.Errorf("Cannot find the file share %q in the service instance %q", shareName, instanceID))
+	if err := b.handleUnbindShare(logger, &serviceInstance, bindOptions.FileShareName, instanceID); err != nil {
+		return nil
 	}
 
+	logger.Debug("updating-service-instance", lager.Data{"instanceID": instanceID, "serviceInstance": serviceInstance})
+	if err := b.store.UpdateServiceInstance(instanceID, serviceInstance); err != nil {
+		return fmt.Errorf("Faied to update service instance in the store for %q: %v", instanceID, err)
+	}
+	logger.Debug("updated-service-instance", lager.Data{"instanceID": instanceID})
 	if err := b.store.DeleteBindingDetails(bindingID); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (b *Broker) handleUnbindShare(logger lager.Logger, serviceInstance *ServiceInstance, shareName, instanceID string) error {
+	logger = logger.Session("handle-unbind-share").WithData(lager.Data{"share": shareName})
+	logger.Info("start")
+	defer logger.Info("end")
+
+	fileShare, ok := serviceInstance.FileShareList[shareName]
+	if !ok {
+		err := fmt.Errorf("Cannot find the file share %q in the service instance %q", shareName, instanceID)
+		logger.Error("get-file-share", err)
+		return err
+	}
+
+	fileShare.Count--
+	if fileShare.Count > 0 {
+		serviceInstance.FileShareList[shareName] = fileShare
+		return nil
+	}
+
+	if fileShare.IsCreated && b.config.cloud.Control.AllowDeleteFileShare {
+		storageAccount, err := NewStorageAccount(
+			logger,
+			&b.config.cloud,
+			Configuration{
+				SubscriptionID:     serviceInstance.SubscriptionID,
+				ResourceGroupName:  serviceInstance.ResourceGroupName,
+				StorageAccountName: serviceInstance.StorageAccountName,
+				UseHTTPS:           strconv.FormatBool(serviceInstance.UseHTTPS),
+			})
+		if err != nil {
+			return err
+		}
+
+		if err := storageAccount.DeleteFileShare(shareName); err != nil {
+			return fmt.Errorf("Faied to delete the file share %q in the storage account %q: %v", shareName, serviceInstance.StorageAccountName, err)
+		}
+	}
+
+	logger.Debug("deleting-share-from-share-list")
+	delete(serviceInstance.FileShareList, shareName)
+	logger.Debug("delete-share-from-share-list", lager.Data{"serviceInstance": serviceInstance})
 	return nil
 }
 
