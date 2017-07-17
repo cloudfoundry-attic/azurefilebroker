@@ -2,7 +2,6 @@ package azurefilebroker
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 
 	"github.com/pivotal-cf/brokerapi"
@@ -18,8 +17,9 @@ type fileStore struct {
 }
 
 type DynamicState struct {
-	InstanceMap map[string]ServiceInstance
-	ShareMap    map[string]brokerapi.BindDetails
+	InstanceMap    map[string]ServiceInstance
+	BindDetailsMap map[string]brokerapi.BindDetails
+	FileShareMap   map[string]FileShare
 }
 
 func NewFileStore(
@@ -30,8 +30,9 @@ func NewFileStore(
 		fileName: fileName,
 		ioutil:   ioutil,
 		dynamicState: &DynamicState{
-			InstanceMap: make(map[string]ServiceInstance),
-			ShareMap:    make(map[string]brokerapi.BindDetails),
+			InstanceMap:    make(map[string]ServiceInstance),
+			BindDetailsMap: make(map[string]brokerapi.BindDetails),
+			FileShareMap:   make(map[string]FileShare),
 		},
 	}
 }
@@ -85,25 +86,25 @@ func (s *fileStore) Cleanup() error {
 func (s *fileStore) RetrieveServiceInstance(id string) (ServiceInstance, error) {
 	requestedServiceInstance, found := s.dynamicState.InstanceMap[id]
 	if !found {
-		return ServiceInstance{}, errors.New(id + " Not Found.")
+		return ServiceInstance{}, brokerapi.ErrInstanceDoesNotExist
 	}
 	return requestedServiceInstance, nil
 }
 
-func (s *fileStore) GetLockForUpdate(_ string, _ int) error {
-	return nil
-}
-
-func (s *fileStore) ReleaseLockForUpdate(_ string) error {
-	return nil
-}
-
 func (s *fileStore) RetrieveBindingDetails(id string) (brokerapi.BindDetails, error) {
-	requestedBindingInstance, found := s.dynamicState.ShareMap[id]
+	requestedBindingDetails, found := s.dynamicState.BindDetailsMap[id]
 	if !found {
-		return brokerapi.BindDetails{}, errors.New(id + " Not Found.")
+		return brokerapi.BindDetails{}, brokerapi.ErrInstanceDoesNotExist
 	}
-	return requestedBindingInstance, nil
+	return requestedBindingDetails, nil
+}
+
+func (s *fileStore) RetrieveFileShare(id string) (FileShare, error) {
+	requestedFileShare, found := s.dynamicState.FileShareMap[id]
+	if !found {
+		return FileShare{}, brokerapi.ErrInstanceDoesNotExist
+	}
+	return requestedFileShare, nil
 }
 
 func (s *fileStore) CreateServiceInstance(id string, instance ServiceInstance) error {
@@ -112,23 +113,28 @@ func (s *fileStore) CreateServiceInstance(id string, instance ServiceInstance) e
 }
 
 func (s *fileStore) CreateBindingDetails(id string, details brokerapi.BindDetails) error {
-	s.dynamicState.ShareMap[id] = details
+	s.dynamicState.BindDetailsMap[id] = details
 	return nil
 }
 
-func (s *fileStore) UpdateServiceInstance(id string, instance ServiceInstance) error {
-	_, found := s.dynamicState.InstanceMap[id]
+func (s *fileStore) CreateFileShare(id string, share FileShare) error {
+	s.dynamicState.FileShareMap[id] = share
+	return nil
+}
+
+func (s *fileStore) UpdateFileShare(id string, share FileShare) error {
+	_, found := s.dynamicState.FileShareMap[id]
 	if !found {
-		return errors.New(id + " Not Found.")
+		return brokerapi.ErrInstanceDoesNotExist
 	}
-	s.dynamicState.InstanceMap[id] = instance
+	s.dynamicState.FileShareMap[id] = share
 	return nil
 }
 
 func (s *fileStore) DeleteServiceInstance(id string) error {
 	_, found := s.dynamicState.InstanceMap[id]
 	if !found {
-		return errors.New(id + " Not Found.")
+		return brokerapi.ErrInstanceDoesNotExist
 	}
 
 	delete(s.dynamicState.InstanceMap, id)
@@ -136,19 +142,29 @@ func (s *fileStore) DeleteServiceInstance(id string) error {
 }
 
 func (s *fileStore) DeleteBindingDetails(id string) error {
-	_, found := s.dynamicState.ShareMap[id]
+	_, found := s.dynamicState.BindDetailsMap[id]
 	if !found {
-		return errors.New(id + " Not Found.")
+		return brokerapi.ErrInstanceDoesNotExist
 	}
 
-	delete(s.dynamicState.ShareMap, id)
+	delete(s.dynamicState.BindDetailsMap, id)
 	return nil
 }
 
-func (s *fileStore) IsServiceInstanceConflict(id string, instance ServiceInstance) bool {
-	return isServiceInstanceConflict(s, id, instance)
+func (s *fileStore) DeleteFileShare(id string) error {
+	_, found := s.dynamicState.FileShareMap[id]
+	if !found {
+		return brokerapi.ErrInstanceDoesNotExist
+	}
+
+	delete(s.dynamicState.FileShareMap, id)
+	return nil
 }
 
-func (s *fileStore) IsBindingConflict(id string, details brokerapi.BindDetails) bool {
-	return isBindingConflict(s, id, details)
+func (s *fileStore) GetLockForUpdate(_ string, _ int) error {
+	return nil
+}
+
+func (s *fileStore) ReleaseLockForUpdate(_ string) error {
+	return nil
 }

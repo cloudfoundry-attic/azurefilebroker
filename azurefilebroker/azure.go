@@ -93,7 +93,7 @@ var Environments = map[string]Environment{
 
 type StorageAccount struct {
 	logger                   lager.Logger
-	cloudConfig				 *CloudConfig
+	cloudConfig              *CloudConfig
 	SubscriptionID           string
 	ResourceGroupName        string
 	StorageAccountName       string
@@ -313,6 +313,7 @@ func (account *StorageAccount) Delete() error {
 
 	_, err := account.storageManagementClient.Delete(account.ResourceGroupName, account.StorageAccountName)
 	if err != nil {
+		// TBD: return nil when the storage account does not exist
 		logger.Error("delete-storage-account", err, lager.Data{"ResourceGroupName": account.ResourceGroupName})
 	}
 	return err
@@ -419,6 +420,7 @@ func (account *StorageAccount) DeleteFileShare(fileShareName string) error {
 	options := file.FileRequestOptions{Timeout: timeoutInSeconds}
 	err := share.Delete(&options)
 	if err != nil {
+		// TBD: return nil when the share does not exist
 		logger.Error("delete-file-share", err)
 	}
 	return err

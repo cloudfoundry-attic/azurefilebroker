@@ -7,8 +7,6 @@ import (
 	"crypto/x509"
 	"time"
 
-	"errors"
-
 	"code.cloudfoundry.org/goshims/sqlshim"
 	"code.cloudfoundry.org/lager"
 	"github.com/go-sql-driver/mysql"
@@ -82,10 +80,35 @@ func (c *mysqlVariant) Close() error {
 	return nil
 }
 
-func (c *mysqlVariant) GetLockForUpdate(lockName string, seconds int) error {
-	return errors.New("not support")
+func (c *mysqlVariant) GetCreateTablesSQL() []string {
+	return []string{
+		`CREATE TABLE IF NOT EXISTS service_instances(
+			id VARCHAR(255) PRIMARY KEY,
+			organization_guid VARCHAR(255),
+			space_guid VARCHAR(255),
+			storage_account_name VARCHAR(255),
+			value VARCHAR(4096),
+			CONSTRAINT storage_account UNIQUE (organization_guid, space_guid, storage_account_name)
+		)`,
+		`CREATE TABLE IF NOT EXISTS service_bindings(
+			id VARCHAR(255) PRIMARY KEY,
+			value VARCHAR(4096)
+		)`,
+		`CREATE TABLE IF NOT EXISTS file_shares(
+			id VARCHAR(255) PRIMARY KEY,
+			instance_id VARCHAR(255),
+			FOREIGN KEY instance_id(instance_id) REFERENCES service_instances(id),
+			file_share_name VARCHAR(255),
+			value VARCHAR(4096),
+			CONSTRAINT file_share UNIQUE (instance_id, file_share_name)
+		)`,
+	}
 }
 
-func (c *mysqlVariant) ReleaseLockForUpdate(lockName string) error {
-	return errors.New("not support")
+func (c *mysqlVariant) GetAppLockSQL() string {
+	return "SELECT GET_LOCK(?, ?)"
+}
+
+func (c *mysqlVariant) GetReleaseAppLockSQL() string {
+	return "SELECT RELEASE_LOCK(?)"
 }

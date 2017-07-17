@@ -9,13 +9,23 @@ import (
 	"code.cloudfoundry.org/lager"
 )
 
+type AppLock interface {
+	GetAppLockSQL() string
+	GetReleaseAppLockSQL() string
+}
+
+type DBInitialize interface {
+	GetCreateTablesSQL() []string
+}
+
 //go:generate counterfeiter -o ../nfsbrokerfakes/fake_sql_variant.go . SqlVariant
 type SqlVariant interface {
 	Connect(logger lager.Logger) (sqlshim.SqlDB, error)
 	Flavorify(query string) string
 	Close() error
 
-	DataLock
+	DBInitialize
+	AppLock
 }
 
 //go:generate counterfeiter -o ../nfsbrokerfakes/fake_sql_connection.go . SqlConnection
@@ -23,7 +33,8 @@ type SqlConnection interface {
 	Connect(logger lager.Logger) error
 	sqlshim.SqlDB
 
-	DataLock
+	DBInitialize
+	AppLock
 }
 
 type sqlConnection struct {
@@ -56,12 +67,16 @@ func (c *sqlConnection) Connect(logger lager.Logger) error {
 	return err
 }
 
-func (c *sqlConnection) GetLockForUpdate(lockName string, seconds int) error {
-	return c.leaf.GetLockForUpdate(lockName, seconds)
+func (c *sqlConnection) GetCreateTablesSQL() []string {
+	return c.leaf.GetCreateTablesSQL()
 }
 
-func (c *sqlConnection) ReleaseLockForUpdate(lockName string) error {
-	return c.leaf.ReleaseLockForUpdate(lockName)
+func (c *sqlConnection) GetAppLockSQL() string {
+	return c.leaf.GetAppLockSQL()
+}
+
+func (c *sqlConnection) GetReleaseAppLockSQL() string {
+	return c.leaf.GetReleaseAppLockSQL()
 }
 
 func (c *sqlConnection) Ping() error {

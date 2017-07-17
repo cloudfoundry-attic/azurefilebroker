@@ -22,8 +22,8 @@ func NewSqlStore(logger lager.Logger, dbDriver, username, password, host, port, 
 	switch dbDriver {
 	case "mysql":
 		toDatabase = NewMySqlVariant(username, password, host, port, dbName, caCert)
-	case "postgres":
-		toDatabase = NewPostgresVariant(username, password, host, port, dbName, caCert)
+	case "mssql":
+		toDatabase = NewMSSqlVariant(username, password, host, port, dbName, caCert, 30)
 	default:
 		err = fmt.Errorf("Unrecognized Driver: %s", dbDriver)
 		logger.Error("db-driver-unrecognized", err)
@@ -59,23 +59,12 @@ func initialize(logger lager.Logger, db SqlConnection) error {
 		return err
 	}
 
-	// TODO: uniquify table names?
-	_, err = db.Exec(`
-			CREATE TABLE IF NOT EXISTS service_instances(
-				id VARCHAR(255) PRIMARY KEY,
-				value VARCHAR(4096)
-			)
-		`)
-	if err != nil {
-		return err
+	for _, query := range db.GetCreateTablesSQL() {
+		if _, err := db.Exec(query); err != nil {
+			return err
+		}
 	}
-	_, err = db.Exec(`
-			CREATE TABLE IF NOT EXISTS service_bindings(
-				id VARCHAR(255) PRIMARY KEY,
-				value VARCHAR(4096)
-			)
-		`)
-	return err
+	return nil
 }
 
 func (s *SqlStore) Restore(logger lager.Logger) error {
@@ -90,23 +79,15 @@ func (s *SqlStore) Cleanup() error {
 	return nil
 }
 
-func (s *SqlStore) CreateServiceInstance(id string, instance ServiceInstance) error {
-	jsonData, err := json.Marshal(instance)
-	if err != nil {
-		return err
-	}
-	_, err = s.Database.Exec("INSERT INTO service_instances (id, value) VALUES (?, ?)", id, jsonData)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *SqlStore) RetrieveServiceInstance(id string) (ServiceInstance, error) {
 	var serviceID string
 	var value []byte
 	var serviceInstance ServiceInstance
-	if err := s.Database.QueryRow("SELECT id, value FROM service_instances WHERE id = ?", id).Scan(&serviceID, &value); err == nil {
+	stmt, err := s.Database.Prepare("SELECT id, value FROM service_instances WHERE id = ?")
+	if err != nil {
+		return ServiceInstance{}, err
+	}
+	if err := stmt.QueryRow(id).Scan(&serviceID, &value); err == nil {
 		err = json.Unmarshal(value, &serviceInstance)
 		if err != nil {
 			return ServiceInstance{}, err
@@ -119,40 +100,15 @@ func (s *SqlStore) RetrieveServiceInstance(id string) (ServiceInstance, error) {
 	}
 }
 
-func (s *SqlStore) UpdateServiceInstance(id string, instance ServiceInstance) error {
-	var serviceID string
-	var value []byte
-	if err := s.Database.QueryRow("SELECT id, value FROM service_instances WHERE id = ?", id).Scan(&serviceID, &value); err != nil {
-		if err == sql.ErrNoRows {
-			return brokerapi.ErrInstanceDoesNotExist
-		}
-		return err
-	}
-
-	jsonData, err := json.Marshal(instance)
-	if err != nil {
-		return err
-	}
-	_, err = s.Database.Exec("UPDATE service_instances set value = ? where id = ?", jsonData, id)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *SqlStore) GetLockForUpdate(lockName string, seconds int) error {
-	return s.Database.GetLockForUpdate(lockName, seconds)
-}
-
-func (s *SqlStore) ReleaseLockForUpdate(lockName string) error {
-	return s.Database.ReleaseLockForUpdate(lockName)
-}
-
 func (s *SqlStore) RetrieveBindingDetails(id string) (brokerapi.BindDetails, error) {
 	var bindingID string
 	var value []byte
 	bindDetails := brokerapi.BindDetails{}
-	if err := s.Database.QueryRow("SELECT id, value FROM service_bindings WHERE id = ?", id).Scan(&bindingID, &value); err == nil {
+	stmt, err := s.Database.Prepare("SELECT id, value FROM service_bindings WHERE id = ?")
+	if err != nil {
+		return brokerapi.BindDetails{}, err
+	}
+	if err := stmt.QueryRow(id).Scan(&bindingID, &value); err == nil {
 		err = json.Unmarshal(value, &bindDetails)
 		if err != nil {
 			return brokerapi.BindDetails{}, err
@@ -165,12 +121,69 @@ func (s *SqlStore) RetrieveBindingDetails(id string) (brokerapi.BindDetails, err
 	}
 }
 
+func (s *SqlStore) RetrieveFileShare(id string) (FileShare, error) {
+	var serviceID string
+	var value []byte
+	var share FileShare
+	stmt, err := s.Database.Prepare("SELECT id, value FROM file_shares WHERE id = ?")
+	if err != nil {
+		return FileShare{}, err
+	}
+	if err := stmt.QueryRow(id).Scan(&serviceID, &value); err == nil {
+		err = json.Unmarshal(value, &share)
+		if err != nil {
+			return FileShare{}, err
+		}
+		return share, nil
+	} else if err == sql.ErrNoRows {
+		return FileShare{}, brokerapi.ErrInstanceDoesNotExist
+	} else {
+		return FileShare{}, err
+	}
+}
+
+func (s *SqlStore) CreateServiceInstance(id string, instance ServiceInstance) error {
+	jsonData, err := json.Marshal(instance)
+	if err != nil {
+		return err
+	}
+	stmt, err := s.Database.Prepare("INSERT INTO service_instances (id, organization_guid, space_guid, storage_account_name, value) VALUES (?, ?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(id, instance.OrganizationGUID, instance.SpaceGUID, instance.StorageAccountName, jsonData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *SqlStore) CreateBindingDetails(id string, details brokerapi.BindDetails) error {
 	jsonData, err := json.Marshal(details)
 	if err != nil {
 		return err
 	}
-	_, err = s.Database.Exec("INSERT INTO service_bindings (id, value) VALUES (?, ?)", id, jsonData)
+	stmt, err := s.Database.Prepare("INSERT INTO service_bindings (id, value) VALUES (?, ?)")
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(id, jsonData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SqlStore) CreateFileShare(id string, share FileShare) error {
+	jsonData, err := json.Marshal(share)
+	if err != nil {
+		return err
+	}
+	stmt, err := s.Database.Prepare("INSERT INTO file_shares (id, instance_id, file_share_name, value) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(id, share.InstanceID, share.FileShareName, jsonData)
 	if err != nil {
 		return err
 	}
@@ -178,7 +191,11 @@ func (s *SqlStore) CreateBindingDetails(id string, details brokerapi.BindDetails
 }
 
 func (s *SqlStore) DeleteServiceInstance(id string) error {
-	_, err := s.Database.Exec("DELETE FROM service_instances WHERE id = ?", id)
+	stmt, err := s.Database.Prepare("DELETE FROM service_instances WHERE id = ?")
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(id)
 	if err != nil {
 		return err
 	}
@@ -186,38 +203,72 @@ func (s *SqlStore) DeleteServiceInstance(id string) error {
 }
 
 func (s *SqlStore) DeleteBindingDetails(id string) error {
-	_, err := s.Database.Exec("DELETE FROM service_bindings WHERE id = ?", id)
+	stmt, err := s.Database.Prepare("DELETE FROM service_bindings WHERE id = ?")
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(id)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *SqlStore) keyValueInTable(logger lager.Logger, key, value, table string) (error, bool) {
-	var queriedServiceID string
-	query := fmt.Sprintf(`SELECT %s.%s FROM %s WHERE %s.%s = ?`, table, key, table, table, key)
-	row := s.Database.QueryRow(query, value)
-	if row == nil {
-		err := fmt.Errorf("Row error!")
-		logger.Error("failed-query", err)
-		return err, true
+func (s *SqlStore) DeleteFileShare(id string) error {
+	stmt, err := s.Database.Prepare("DELETE FROM file_shares WHERE id = ?")
+	if err != nil {
+		return err
 	}
-	err := row.Scan(&queriedServiceID)
-	if err == nil {
-		return nil, true
-	} else if err == sql.ErrNoRows {
-		return nil, false
+	_, err = stmt.Exec(id)
+	if err != nil {
+		return err
 	}
-
-	logger.Debug("failed-query", lager.Data{"Query": query})
-	logger.Error("failed-query", err)
-	return err, true
+	return nil
 }
 
-func (s *SqlStore) IsServiceInstanceConflict(id string, instance ServiceInstance) bool {
-	return isServiceInstanceConflict(s, id, instance)
+func (s *SqlStore) UpdateFileShare(id string, share FileShare) error {
+	var serviceID string
+	var value []byte
+	stmt, err := s.Database.Prepare("SELECT id, value FROM file_shares WHERE id = ?")
+	if err != nil {
+		return err
+	}
+	if err := stmt.QueryRow(id).Scan(&serviceID, &value); err != nil {
+		if err == sql.ErrNoRows {
+			return brokerapi.ErrInstanceDoesNotExist
+		}
+		return err
+	}
+
+	jsonData, err := json.Marshal(share)
+	if err != nil {
+		return err
+	}
+	stmt, err = s.Database.Prepare("UPDATE file_shares set value = ? WHERE id = ?")
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(jsonData, id)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (s *SqlStore) IsBindingConflict(id string, details brokerapi.BindDetails) bool {
-	return isBindingConflict(s, id, details)
+func (s *SqlStore) GetLockForUpdate(lockName string, seconds int) error {
+	stmt, err := s.Database.Prepare(s.Database.GetAppLockSQL())
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Query(lockName, timeoutInSeconds)
+	return err
+}
+
+func (s *SqlStore) ReleaseLockForUpdate(lockName string) error {
+	stmt, err := s.Database.Prepare(s.Database.GetReleaseAppLockSQL())
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Query(lockName)
+	return err
 }
