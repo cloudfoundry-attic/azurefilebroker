@@ -29,6 +29,10 @@ const (
 	deviceTypeShared string = "shared"
 )
 
+const (
+	lockTimeoutInSeconds int = 30
+)
+
 type Configuration struct {
 	SubscriptionID     string `json:"subscription_id"`
 	ResourceGroupName  string `json:"resource_group_name"`
@@ -139,30 +143,28 @@ type lock interface {
 }
 
 type Broker struct {
-	logger  lager.Logger
-	dataDir string
-	os      osshim.Os
-	mutex   lock
-	clock   clock.Clock
-	static  staticState
-	store   Store
-	config  Config
+	logger lager.Logger
+	os     osshim.Os
+	mutex  lock
+	clock  clock.Clock
+	static staticState
+	store  Store
+	config Config
 }
 
 func New(
 	logger lager.Logger,
-	serviceName, serviceID, dataDir string,
+	serviceName, serviceID string,
 	os osshim.Os,
 	clock clock.Clock,
 	store Store,
 	config *Config,
 ) *Broker {
 	theBroker := Broker{
-		logger:  logger,
-		dataDir: dataDir,
-		os:      os,
-		mutex:   &sync.Mutex{},
-		clock:   clock,
+		logger: logger,
+		os:     os,
+		mutex:  &sync.Mutex{},
+		clock:  clock,
 		static: staticState{
 			ServiceName: serviceName,
 			ServiceID:   serviceID,
@@ -170,8 +172,6 @@ func New(
 		store:  store,
 		config: *config,
 	}
-
-	theBroker.store.Restore()
 
 	return &theBroker
 }
@@ -229,12 +229,6 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	defer func() {
-		out := b.store.Save()
-		if e == nil {
-			e = out
-		}
-	}()
 
 	storageAccount, err := b.getStorageAccount(logger, configuration)
 	if err != nil {
@@ -306,12 +300,6 @@ func (b *Broker) Deprovision(context context.Context, instanceID string, details
 
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	defer func() {
-		out := b.store.Save()
-		if e == nil {
-			e = out
-		}
-	}()
 
 	serviceInstance, err := b.store.RetrieveServiceInstance(instanceID)
 	if err != nil {
@@ -389,12 +377,6 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	defer func() {
-		out := b.store.Save()
-		if e == nil {
-			e = out
-		}
-	}()
 
 	serviceInstance, err := b.store.RetrieveServiceInstance(instanceID)
 	if err != nil {
@@ -404,7 +386,7 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 	}
 
 	fileShareID := getFileShareID(instanceID, fileShareName)
-	err = b.store.GetLockForUpdate(fileShareID, timeoutInSeconds)
+	err = b.store.GetLockForUpdate(fileShareID, lockTimeoutInSeconds)
 	if err != nil {
 		logger.Error("get-lock-for-update", err)
 		return brokerapi.Binding{}, err
@@ -567,12 +549,6 @@ func (b *Broker) Unbind(context context.Context, instanceID string, bindingID st
 
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	defer func() {
-		out := b.store.Save()
-		if e == nil {
-			e = out
-		}
-	}()
 
 	serviceInstance, err := b.store.RetrieveServiceInstance(instanceID)
 	if err != nil {
@@ -595,7 +571,7 @@ func (b *Broker) Unbind(context context.Context, instanceID string, bindingID st
 	fileShareName := bindOptions.FileShareName
 
 	fileShareID := getFileShareID(instanceID, fileShareName)
-	err = b.store.GetLockForUpdate(fileShareID, timeoutInSeconds)
+	err = b.store.GetLockForUpdate(fileShareID, lockTimeoutInSeconds)
 	if err != nil {
 		logger.Error("get-lock-for-update", err)
 		return err

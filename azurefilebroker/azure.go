@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	creator          = "creator"
-	resourceNotFound = "StatusCode=404"
-	timeoutInSeconds = 60
-	locationWestUS   = "westus"
+	creator                     = "creator"
+	resourceNotFound            = "StatusCode=404"
+	fileRequestTimeoutInSeconds = 60
+	locationWestUS              = "westus"
 )
 
 var (
@@ -399,7 +399,7 @@ func (account *StorageAccount) CreateFileShare(fileShareName string) error {
 	}
 	fileService := account.storageFileServiceClient.GetFileService()
 	share := fileService.GetShareReference(fileShareName)
-	options := file.FileRequestOptions{Timeout: timeoutInSeconds}
+	options := file.FileRequestOptions{Timeout: fileRequestTimeoutInSeconds}
 	err := share.Create(&options)
 	if err != nil {
 		logger.Error("create-file-share", err)
@@ -417,7 +417,7 @@ func (account *StorageAccount) DeleteFileShare(fileShareName string) error {
 	}
 	fileService := account.storageFileServiceClient.GetFileService()
 	share := fileService.GetShareReference(fileShareName)
-	options := file.FileRequestOptions{Timeout: timeoutInSeconds}
+	options := file.FileRequestOptions{Timeout: fileRequestTimeoutInSeconds}
 	err := share.Delete(&options)
 	if err != nil {
 		// TBD: return nil when the share does not exist

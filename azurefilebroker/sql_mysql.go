@@ -17,23 +17,25 @@ type mysqlVariant struct {
 	dbConnectionString string
 	caCert             string
 	dbName             string
+	logger             lager.Logger
 }
 
-func NewMySqlVariant(username, password, host, port, dbName, caCert string) SqlVariant {
-	return NewMySqlVariantWithSqlObject(username, password, host, port, dbName, caCert, &sqlshim.SqlShim{})
+func NewMySqlVariant(logger lager.Logger, username, password, host, port, dbName, caCert string) SqlVariant {
+	return NewMySqlVariantWithSqlObject(logger, username, password, host, port, dbName, caCert, &sqlshim.SqlShim{})
 }
 
-func NewMySqlVariantWithSqlObject(username, password, host, port, dbName, caCert string, sql sqlshim.Sql) SqlVariant {
+func NewMySqlVariantWithSqlObject(logger lager.Logger, username, password, host, port, dbName, caCert string, sql sqlshim.Sql) SqlVariant {
 	return &mysqlVariant{
 		sql:                sql,
 		dbConnectionString: fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName),
 		caCert:             caCert,
 		dbName:             dbName,
+		logger:             logger,
 	}
 }
 
-func (c *mysqlVariant) Connect(logger lager.Logger) (sqlshim.SqlDB, error) {
-	logger = logger.Session("mysql-connection-connect")
+func (c *mysqlVariant) Connect() (sqlshim.SqlDB, error) {
+	logger := c.logger.Session("mysql-connection-connect")
 	logger.Info("start")
 	defer logger.Info("end")
 

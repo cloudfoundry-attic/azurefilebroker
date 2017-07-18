@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/goshims/sqlshim"
-	"code.cloudfoundry.org/lager"
 )
 
 type AppLock interface {
@@ -20,7 +19,7 @@ type DBInitialize interface {
 
 //go:generate counterfeiter -o ../nfsbrokerfakes/fake_sql_variant.go . SqlVariant
 type SqlVariant interface {
-	Connect(logger lager.Logger) (sqlshim.SqlDB, error)
+	Connect() (sqlshim.SqlDB, error)
 	Flavorify(query string) string
 	Close() error
 
@@ -30,7 +29,7 @@ type SqlVariant interface {
 
 //go:generate counterfeiter -o ../nfsbrokerfakes/fake_sql_connection.go . SqlConnection
 type SqlConnection interface {
-	Connect(logger lager.Logger) error
+	Connect() error
 	sqlshim.SqlDB
 
 	DBInitialize
@@ -55,8 +54,8 @@ func (c *sqlConnection) flavorify(query string) string {
 	return c.leaf.Flavorify(query)
 }
 
-func (c *sqlConnection) Connect(logger lager.Logger) error {
-	sqlDB, err := c.leaf.Connect(logger)
+func (c *sqlConnection) Connect() error {
+	sqlDB, err := c.leaf.Connect()
 	if err != nil {
 		return err
 	}

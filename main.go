@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"code.cloudfoundry.org/clock"
 	"code.cloudfoundry.org/debugserver"
@@ -16,18 +15,10 @@ import (
 	"github.com/AbelHu/azurefilebroker/azurefilebroker"
 	"github.com/AbelHu/azurefilebroker/utils"
 
-	"github.com/go-sql-driver/mysql"
-	"github.com/lib/pq"
 	"github.com/pivotal-cf/brokerapi"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
 	"github.com/tedsuo/ifrit/http_server"
-)
-
-var dataDir = flag.String(
-	"dataDir",
-	"",
-	"[REQUIRED] - Broker's state will be stored here to persist across reboots",
 )
 
 var atAddress = flag.String(
@@ -58,25 +49,25 @@ var cfServiceName = flag.String(
 var dbDriver = flag.String(
 	"dbDriver",
 	"",
-	"(optional) database driver name when using SQL to store broker state",
+	"[REQUIRED] - database driver name when using SQL to store broker state",
 )
 
 var dbHostname = flag.String(
 	"dbHostname",
 	"",
-	"(optional) database hostname when using SQL to store broker state",
+	"[REQUIRED] - database hostname when using SQL to store broker state",
 )
 
 var dbPort = flag.String(
 	"dbPort",
 	"",
-	"(optional) database port when using SQL to store broker state",
+	"[REQUIRED] - database port when using SQL to store broker state",
 )
 
 var dbName = flag.String(
 	"dbName",
 	"",
-	"(optional) database name when using SQL to store broker state",
+	"[REQUIRED] - database name when using SQL to store broker state",
 )
 
 var dbCACert = flag.String(
@@ -233,8 +224,8 @@ func parseEnvironment() {
 }
 
 func checkParams() {
-	if *dataDir == "" && *dbDriver == "" {
-		fmt.Fprint(os.Stderr, "\nERROR: Either dataDir or db parameters must be provided.\n\n")
+	if *dbDriver == "" {
+		fmt.Fprint(os.Stderr, "\nERROR: dbDriver parameter is required.\n\n")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -242,10 +233,6 @@ func checkParams() {
 
 // When the broker is running as a CF application, we use db username and password as broker's credential for cloud controler authentication
 func parseVcapServices(logger lager.Logger) {
-	if *dbDriver == "" {
-		logger.Fatal("missing-db-driver-parameter", errors.New("dbDriver parameter is required for cf deployed broker"))
-	}
-
 	// populate db parameters from VCAP_SERVICES and pitch a fit if there isn't one.
 	services, hasValue := os.LookupEnv("VCAP_SERVICES")
 	if !hasValue {
@@ -276,14 +263,12 @@ func parseVcapServices(logger lager.Logger) {
 }
 
 func createServer(logger lager.Logger) ifrit.Runner {
-	fileName := filepath.Join(*dataDir, fmt.Sprintf("%s-services.json", *serviceName))
-
 	// if we are CF pushed
 	if *cfServiceName != "" {
 		parseVcapServices(logger)
 	}
 
-	store := azurefilebroker.NewStore(logger, *dbDriver, dbUsername, dbPassword, *dbHostname, *dbPort, *dbName, *dbCACert, fileName)
+	store := azurefilebroker.NewStore(logger, *dbDriver, dbUsername, dbPassword, *dbHostname, *dbPort, *dbName, *dbCACert)
 
 	mount := azurefilebroker.NewAzurefilebrokerMountConfig()
 	mount.ReadConf(*allowedOptions, *defaultOptions)
@@ -326,19 +311,11 @@ func createServer(logger lager.Logger) ifrit.Runner {
 
 	serviceBroker := azurefilebroker.New(logger,
 		*serviceName, *serviceID,
-		*dataDir, &osshim.OsShim{}, clock.NewClock(),
+		&osshim.OsShim{}, clock.NewClock(),
 		store, config)
 
 	credentials := brokerapi.BrokerCredentials{Username: username, Password: password}
 	handler := brokerapi.New(serviceBroker, logger.Session("broker-api"), credentials)
 
 	return http_server.New(*atAddress, handler)
-}
-
-func ConvertPostgresError(err *pq.Error) string {
-	return ""
-}
-
-func ConvertMySqlError(err mysql.MySQLError) string {
-	return ""
 }

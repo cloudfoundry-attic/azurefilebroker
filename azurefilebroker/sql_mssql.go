@@ -10,6 +10,11 @@ import (
 	"code.cloudfoundry.org/goshims/osshim"
 	"code.cloudfoundry.org/goshims/sqlshim"
 	"code.cloudfoundry.org/lager"
+	_ "github.com/denisenkom/go-mssqldb"
+)
+
+const (
+	sqlConnectTimeoutInSeconds int = 30
 )
 
 type mssqlVariant struct {
@@ -19,23 +24,25 @@ type mssqlVariant struct {
 	dbConnectionString string
 	caCert             string
 	dbName             string
+	logger             lager.Logger
 }
 
-func NewMSSqlVariant(username, password, host, port, dbName, caCert string, timeoutInSeconds int) SqlVariant {
-	return NewMSSqlVariantWithShims(username, password, host, port, dbName, caCert, timeoutInSeconds, &sqlshim.SqlShim{}, &ioutilshim.IoutilShim{}, &osshim.OsShim{})
+func NewMSSqlVariant(logger lager.Logger, username, password, host, port, dbName, caCert string) SqlVariant {
+	return NewMSSqlVariantWithShims(logger, username, password, host, port, dbName, caCert, &sqlshim.SqlShim{}, &ioutilshim.IoutilShim{}, &osshim.OsShim{})
 }
 
-func NewMSSqlVariantWithShims(username, password, host, port, dbName, caCert string, timeoutInSeconds int, sql sqlshim.Sql, ioutil ioutilshim.Ioutil, os osshim.Os) SqlVariant {
+func NewMSSqlVariantWithShims(logger lager.Logger, username, password, host, port, dbName, caCert string, sql sqlshim.Sql, ioutil ioutilshim.Ioutil, os osshim.Os) SqlVariant {
 	query := url.Values{}
-	query.Add("connection timeout", fmt.Sprintf("%d", timeoutInSeconds))
+	query.Add("database", dbName)
+	query.Add("connection timeout", fmt.Sprintf("%d", sqlConnectTimeoutInSeconds))
 
 	u := &url.URL{
 		Scheme:   "sqlserver",
 		User:     url.UserPassword(username, password),
-		Host:     fmt.Sprintf("%s:%d", host, port),
-		Path:     dbName,
+		Host:     fmt.Sprintf("%s:%s", host, port),
 		RawQuery: query.Encode(),
 	}
+
 	return &mssqlVariant{
 		sql:                sql,
 		os:                 os,
@@ -43,17 +50,16 @@ func NewMSSqlVariantWithShims(username, password, host, port, dbName, caCert str
 		dbConnectionString: u.String(),
 		caCert:             caCert,
 		dbName:             dbName,
+		logger:             logger,
 	}
 }
 
-func (c *mssqlVariant) Connect(logger lager.Logger) (sqlshim.SqlDB, error) {
-	logger = logger.Session("mssql-connection-connect")
+func (c *mssqlVariant) Connect() (sqlshim.SqlDB, error) {
+	logger := c.logger.Session("mssql-connection-connect")
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if c.caCert == "" {
-		c.dbConnectionString = fmt.Sprintf("sqlserver://%s?database=%s", c.dbConnectionString, c.dbName)
-	} else {
+	if c.caCert != "" {
 		certBytes := []byte(c.caCert)
 
 		caCertPool := x509.NewCertPool()
@@ -103,26 +109,30 @@ func (c *mssqlVariant) GetCreateTablesSQL() []string {
 		BEGIN
 			CREATE TABLE service_instances(
 				id VARCHAR(255) PRIMARY KEY,
-				value VARCHAR(4096)
+				organization_guid VARCHAR(255),
+				space_guid VARCHAR(255),
+				storage_account_name VARCHAR(255),
+				value VARCHAR(4096),
+				CONSTRAINT storage_account UNIQUE (organization_guid, space_guid, storage_account_name)
 			)
 		END`,
 		`IF NOT EXISTS (SELECT * from sys.databases WHERE name='service_bindings')
 		BEGIN
-		CREATE TABLE service_bindings(
-			id VARCHAR(255) PRIMARY KEY,
-			value VARCHAR(4096)
-		)
+			CREATE TABLE service_bindings(
+				id VARCHAR(255) PRIMARY KEY,
+				value VARCHAR(4096)
+			)
 		END`,
 		`IF NOT EXISTS (SELECT * from sys.databases WHERE name='file_shares')
 		BEGIN
-		CREATE TABLE file_shares(
-			id VARCHAR(255) PRIMARY KEY,
-			instance_id VARCHAR(255),
-			FOREIGN KEY (instance_id) REFERENCES service_instances(id),
-			file_share_name VARCHAR(255),
-			value VARCHAR(4096),
-			CONSTRAINT file_share UNIQUE (instance_id, file_share_name)
-		)
+			CREATE TABLE file_shares(
+				id VARCHAR(255) PRIMARY KEY,
+				instance_id VARCHAR(255),
+				FOREIGN KEY (instance_id) REFERENCES service_instances(id),
+				file_share_name VARCHAR(255),
+				value VARCHAR(4096),
+				CONSTRAINT file_share UNIQUE (instance_id, file_share_name)
+			)
 		END`,
 	}
 }
@@ -132,5 +142,5 @@ func (c *mssqlVariant) GetAppLockSQL() string {
 }
 
 func (c *mssqlVariant) GetReleaseAppLockSQL() string {
-	return "SP_RELEASEAPPLOCK @Resource = ?"
+	return "SP_RELEASEAPPLOCK @Resource = ?, @LockOwner = 'Session'"
 }
