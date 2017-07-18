@@ -14,6 +14,7 @@ type fileStore struct {
 	fileName     string
 	ioutil       ioutilshim.Ioutil
 	dynamicState *DynamicState
+	logger       lager.Logger
 }
 
 type DynamicState struct {
@@ -25,6 +26,7 @@ type DynamicState struct {
 func NewFileStore(
 	fileName string,
 	ioutil ioutilshim.Ioutil,
+	logger lager.Logger,
 ) Store {
 	return &fileStore{
 		fileName: fileName,
@@ -34,11 +36,12 @@ func NewFileStore(
 			BindDetailsMap: make(map[string]brokerapi.BindDetails),
 			FileShareMap:   make(map[string]FileShare),
 		},
+		logger: logger.Session("file-store"),
 	}
 }
 
-func (s *fileStore) Restore(logger lager.Logger) error {
-	logger = logger.Session("restore-state")
+func (s *fileStore) Restore() error {
+	logger := s.logger.Session("restore-state")
 	logger.Info("start")
 	defer logger.Info("end")
 
@@ -58,8 +61,8 @@ func (s *fileStore) Restore(logger lager.Logger) error {
 	return err
 }
 
-func (s *fileStore) Save(logger lager.Logger) error {
-	logger = logger.Session("serialize-state")
+func (s *fileStore) Save() error {
+	logger := s.logger.Session("serialize-state")
 	logger.Info("start")
 	defer logger.Info("end")
 

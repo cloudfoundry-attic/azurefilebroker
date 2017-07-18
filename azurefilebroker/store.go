@@ -8,8 +8,8 @@ import (
 
 //go:generate counterfeiter -o ./azurefilebrokerfakes/fake_store.go src/github.com/AbelHu/azurefilebroker/azurefilebroker/Store Store
 type Store interface {
-	Restore(logger lager.Logger) error
-	Save(logger lager.Logger) error
+	Restore() error
+	Save() error
 	Cleanup() error
 
 	RetrieveServiceInstance(id string) (ServiceInstance, error)
@@ -37,9 +37,8 @@ func NewStore(logger lager.Logger, dbDriver, dbUsername, dbPassword, dbHostname,
 			logger.Fatal("create-sql-store", err)
 		}
 		return store
-	} else {
-		return NewFileStore(fileName, &ioutilshim.IoutilShim{})
 	}
+	return NewFileStore(fileName, &ioutilshim.IoutilShim{}, logger)
 }
 
 // Utility methods for storing bindings with secrets stripped out

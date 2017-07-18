@@ -171,7 +171,7 @@ func New(
 		config: *config,
 	}
 
-	theBroker.store.Restore(logger)
+	theBroker.store.Restore()
 
 	return &theBroker
 }
@@ -230,7 +230,7 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	defer func() {
-		out := b.store.Save(logger)
+		out := b.store.Save()
 		if e == nil {
 			e = out
 		}
@@ -307,7 +307,7 @@ func (b *Broker) Deprovision(context context.Context, instanceID string, details
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	defer func() {
-		out := b.store.Save(logger)
+		out := b.store.Save()
 		if e == nil {
 			e = out
 		}
@@ -390,7 +390,7 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	defer func() {
-		out := b.store.Save(logger)
+		out := b.store.Save()
 		if e == nil {
 			e = out
 		}
@@ -568,7 +568,7 @@ func (b *Broker) Unbind(context context.Context, instanceID string, bindingID st
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	defer func() {
-		out := b.store.Save(logger)
+		out := b.store.Save()
 		if e == nil {
 			e = out
 		}

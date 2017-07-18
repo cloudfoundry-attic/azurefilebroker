@@ -14,6 +14,7 @@ import (
 type SqlStore struct {
 	StoreType string
 	Database  SqlConnection
+	logger    lager.Logger
 }
 
 func NewSqlStore(logger lager.Logger, dbDriver, username, password, host, port, dbName, caCert string) (Store, error) {
@@ -44,6 +45,7 @@ func NewSqlStoreWithVariant(logger lager.Logger, toDatabase SqlVariant) (Store, 
 
 	return &SqlStore{
 		Database: database,
+		logger:   logger.Session("sql-store"),
 	}, nil
 }
 
@@ -67,11 +69,11 @@ func initialize(logger lager.Logger, db SqlConnection) error {
 	return nil
 }
 
-func (s *SqlStore) Restore(logger lager.Logger) error {
+func (s *SqlStore) Restore() error {
 	return nil
 }
 
-func (s *SqlStore) Save(logger lager.Logger) error {
+func (s *SqlStore) Save() error {
 	return nil
 }
 
@@ -95,9 +97,8 @@ func (s *SqlStore) RetrieveServiceInstance(id string) (ServiceInstance, error) {
 		return serviceInstance, nil
 	} else if err == sql.ErrNoRows {
 		return ServiceInstance{}, brokerapi.ErrInstanceDoesNotExist
-	} else {
-		return ServiceInstance{}, err
 	}
+	return ServiceInstance{}, err
 }
 
 func (s *SqlStore) RetrieveBindingDetails(id string) (brokerapi.BindDetails, error) {
@@ -116,9 +117,8 @@ func (s *SqlStore) RetrieveBindingDetails(id string) (brokerapi.BindDetails, err
 		return bindDetails, nil
 	} else if err == sql.ErrNoRows {
 		return brokerapi.BindDetails{}, brokerapi.ErrInstanceDoesNotExist
-	} else {
-		return brokerapi.BindDetails{}, err
 	}
+	return brokerapi.BindDetails{}, err
 }
 
 func (s *SqlStore) RetrieveFileShare(id string) (FileShare, error) {
@@ -137,9 +137,8 @@ func (s *SqlStore) RetrieveFileShare(id string) (FileShare, error) {
 		return share, nil
 	} else if err == sql.ErrNoRows {
 		return FileShare{}, brokerapi.ErrInstanceDoesNotExist
-	} else {
-		return FileShare{}, err
 	}
+	return FileShare{}, err
 }
 
 func (s *SqlStore) CreateServiceInstance(id string, instance ServiceInstance) error {
@@ -256,19 +255,33 @@ func (s *SqlStore) UpdateFileShare(id string, share FileShare) error {
 }
 
 func (s *SqlStore) GetLockForUpdate(lockName string, seconds int) error {
-	stmt, err := s.Database.Prepare(s.Database.GetAppLockSQL())
+	query := s.Database.GetAppLockSQL()
+	s.logger.Info("get-lock-for-update", lager.Data{"query": query})
+	stmt, err := s.Database.Prepare(query)
 	if err != nil {
 		return err
 	}
-	_, err = stmt.Query(lockName, timeoutInSeconds)
+	var row string
+	if err := stmt.QueryRow(lockName, timeoutInSeconds).Scan(&row); err == nil {
+		return nil
+	} else if err == sql.ErrNoRows {
+		return fmt.Errorf("Cannot get the lock %q for update in %d seconds", lockName, seconds)
+	}
 	return err
 }
 
 func (s *SqlStore) ReleaseLockForUpdate(lockName string) error {
-	stmt, err := s.Database.Prepare(s.Database.GetReleaseAppLockSQL())
+	query := s.Database.GetReleaseAppLockSQL()
+	s.logger.Info("release-lock-for-update", lager.Data{"query": query})
+	stmt, err := s.Database.Prepare(query)
 	if err != nil {
 		return err
 	}
-	_, err = stmt.Query(lockName)
+	var row string
+	if err := stmt.QueryRow(lockName).Scan(&row); err == nil {
+		return nil
+	} else if err == sql.ErrNoRows {
+		return fmt.Errorf("Cannot release the lock %q for update", lockName)
+	}
 	return err
 }
