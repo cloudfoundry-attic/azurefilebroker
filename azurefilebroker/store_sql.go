@@ -255,33 +255,45 @@ func (s *SqlStore) UpdateFileShare(id string, share FileShare) error {
 }
 
 func (s *SqlStore) GetLockForUpdate(lockName string, seconds int) error {
+	logger := s.logger.WithData(lager.Data{"lockName": lockName, "seconds": seconds})
 	query := s.Database.GetAppLockSQL()
-	s.logger.Info("get-lock-for-update", lager.Data{"query": query})
+	logger.Info("get-lock-for-update", lager.Data{"query": query})
 	stmt, err := s.Database.Prepare(query)
 	if err != nil {
+		logger.Error("prepare-for-get-lock", err)
 		return err
 	}
 	var row string
 	if err := stmt.QueryRow(lockName, timeoutInSeconds).Scan(&row); err == nil {
+		logger.Info("get-lock-success")
 		return nil
 	} else if err == sql.ErrNoRows {
-		return fmt.Errorf("Cannot get the lock %q for update in %d seconds", lockName, seconds)
+		err = fmt.Errorf("Cannot get the lock %q for update in %d seconds", lockName, seconds)
+		logger.Error("get-lock-fail", err)
+		return err
 	}
+	logger.Error("get-lock-fail", err)
 	return err
 }
 
 func (s *SqlStore) ReleaseLockForUpdate(lockName string) error {
+	logger := s.logger.WithData(lager.Data{"lockName": lockName})
 	query := s.Database.GetReleaseAppLockSQL()
-	s.logger.Info("release-lock-for-update", lager.Data{"query": query})
+	logger.Info("release-lock-for-update", lager.Data{"query": query})
 	stmt, err := s.Database.Prepare(query)
 	if err != nil {
+		logger.Error("prepare-for-release-lock", err)
 		return err
 	}
 	var row string
 	if err := stmt.QueryRow(lockName).Scan(&row); err == nil {
+		logger.Info("release-lock-success")
 		return nil
 	} else if err == sql.ErrNoRows {
-		return fmt.Errorf("Cannot release the lock %q for update", lockName)
+		err = fmt.Errorf("Cannot release the lock %q for update", lockName)
+		logger.Error("release-lock-fail", err)
+		return err
 	}
+	logger.Error("release-lock-fail", err)
 	return err
 }
