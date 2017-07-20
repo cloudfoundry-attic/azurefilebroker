@@ -74,11 +74,7 @@ func (c *mysqlVariant) Connect() (sqlshim.SqlDB, error) {
 	return sqlDB, err
 }
 
-func (c *mysqlVariant) Close() error {
-	return nil
-}
-
-func (c *mysqlVariant) GetCreateTablesSQL() []string {
+func (c *mysqlVariant) GetInitializeDatabaseSQL() []string {
 	return []string{
 		`CREATE TABLE IF NOT EXISTS service_instances(
 			id VARCHAR(255) PRIMARY KEY,

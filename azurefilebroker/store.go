@@ -77,7 +77,7 @@ func initialize(logger lager.Logger, db SqlConnection) error {
 		return err
 	}
 
-	for _, query := range db.GetCreateTablesSQL() {
+	for _, query := range db.GetInitializeDatabaseSQL() {
 		if _, err := db.Exec(query); err != nil {
 			return err
 		}

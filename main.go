@@ -73,7 +73,7 @@ var dbName = flag.String(
 var dbCACert = flag.String(
 	"dbCACert",
 	"",
-	"(optional) CA Cert to verify SSL connection",
+	"(optional) CA Cert to verify SSL connection. For Azure SQL service, you can use non-empty value to enable TLS encryption",
 )
 
 // Bind

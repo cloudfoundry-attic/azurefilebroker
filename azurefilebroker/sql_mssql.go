@@ -4,17 +4,11 @@ import (
 	"fmt"
 	"net/url"
 
-	"crypto/x509"
-
 	"code.cloudfoundry.org/goshims/ioutilshim"
 	"code.cloudfoundry.org/goshims/osshim"
 	"code.cloudfoundry.org/goshims/sqlshim"
 	"code.cloudfoundry.org/lager"
 	_ "github.com/denisenkom/go-mssqldb"
-)
-
-const (
-	sqlConnectTimeoutInSeconds int = 30
 )
 
 type mssqlVariant struct {
@@ -34,7 +28,6 @@ func NewMSSqlVariant(logger lager.Logger, username, password, host, port, dbName
 func NewMSSqlVariantWithShims(logger lager.Logger, username, password, host, port, dbName, caCert string, sql sqlshim.Sql, ioutil ioutilshim.Ioutil, os osshim.Os) SqlVariant {
 	query := url.Values{}
 	query.Add("database", dbName)
-	query.Add("connection timeout", fmt.Sprintf("%d", sqlConnectTimeoutInSeconds))
 
 	u := &url.URL{
 		Scheme:   "sqlserver",
@@ -60,46 +53,19 @@ func (c *mssqlVariant) Connect() (sqlshim.SqlDB, error) {
 	defer logger.Info("end")
 
 	if c.caCert != "" {
-		certBytes := []byte(c.caCert)
+		query := url.Values{}
+		query.Add("encrypt", "true")
+		query.Add("TrustServerCertificate", "false")
+		query.Add("hostNameInCertificate", "*.database.windows.net")
 
-		caCertPool := x509.NewCertPool()
-		if ok := caCertPool.AppendCertsFromPEM(certBytes); !ok {
-			err := fmt.Errorf("Invalid CA Cert for %s", c.dbName)
-			logger.Error("failed-to-parse-sql-ca", err)
-			return nil, err
-		}
-
-		tmpFile, err := c.ioutil.TempFile("", "mssql-ca-cert")
-		if err != nil {
-			logger.Error("tempfile-create-failed", err)
-			return nil, err
-		}
-
-		if _, err := tmpFile.Write([]byte(c.caCert)); err != nil {
-			logger.Error("tempfile-write-failed", err)
-			return nil, err
-		}
-		if err := tmpFile.Close(); err != nil {
-			logger.Error("tempfile-close-failed", err)
-			return nil, err
-		}
-
-		c.caCert = tmpFile.Name()
-		c.dbConnectionString = fmt.Sprintf("%s?sslmode=verify-ca&sslrootcert=%s", c.dbConnectionString, c.caCert)
+		c.dbConnectionString = fmt.Sprintf("%s&%s", c.dbConnectionString, query.Encode())
 	}
 
 	sqlDB, err := c.sql.Open("mssql", c.dbConnectionString)
 	return sqlDB, err
 }
 
-func (c *mssqlVariant) Close() error {
-	if c.caCert != "" {
-		return c.os.Remove(c.caCert)
-	}
-	return nil
-}
-
-func (c *mssqlVariant) GetCreateTablesSQL() []string {
+func (c *mssqlVariant) GetInitializeDatabaseSQL() []string {
 	return []string{
 		`IF NOT EXISTS (SELECT * from sys.objects WHERE name='service_instances' and type = 'U')
 		BEGIN

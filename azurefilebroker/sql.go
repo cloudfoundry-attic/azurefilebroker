@@ -14,13 +14,12 @@ type AppLock interface {
 }
 
 type DBInitialize interface {
-	GetCreateTablesSQL() []string
+	GetInitializeDatabaseSQL() []string
 }
 
 //go:generate counterfeiter -o ../nfsbrokerfakes/fake_sql_variant.go . SqlVariant
 type SqlVariant interface {
 	Connect() (sqlshim.SqlDB, error)
-	Close() error
 
 	DBInitialize
 	AppLock
@@ -61,8 +60,8 @@ func (c *sqlConnection) Connect() error {
 	return err
 }
 
-func (c *sqlConnection) GetCreateTablesSQL() []string {
-	return c.leaf.GetCreateTablesSQL()
+func (c *sqlConnection) GetInitializeDatabaseSQL() []string {
+	return c.leaf.GetInitializeDatabaseSQL()
 }
 
 func (c *sqlConnection) GetAppLockSQL() string {
@@ -78,7 +77,6 @@ func (c *sqlConnection) Ping() error {
 }
 
 func (c *sqlConnection) Close() error {
-	defer c.leaf.Close()
 	return c.sqlDB.Close()
 }
 
