@@ -20,7 +20,6 @@ type DBInitialize interface {
 //go:generate counterfeiter -o ../nfsbrokerfakes/fake_sql_variant.go . SqlVariant
 type SqlVariant interface {
 	Connect() (sqlshim.SqlDB, error)
-	Flavorify(query string) string
 	Close() error
 
 	DBInitialize
@@ -48,10 +47,6 @@ func NewSqlConnection(variant SqlVariant) SqlConnection {
 	return &sqlConnection{
 		leaf: variant,
 	}
-}
-
-func (c *sqlConnection) flavorify(query string) string {
-	return c.leaf.Flavorify(query)
 }
 
 func (c *sqlConnection) Connect() error {
@@ -104,19 +99,19 @@ func (c *sqlConnection) Stats() sql.DBStats {
 }
 
 func (c *sqlConnection) Prepare(query string) (*sql.Stmt, error) {
-	return c.sqlDB.Prepare(c.flavorify(query))
+	return c.sqlDB.Prepare(query)
 }
 
 func (c *sqlConnection) Exec(query string, args ...interface{}) (sql.Result, error) {
-	return c.sqlDB.Exec(c.flavorify(query), args...)
+	return c.sqlDB.Exec(query, args...)
 }
 
 func (c *sqlConnection) Query(query string, args ...interface{}) (*sql.Rows, error) {
-	return c.sqlDB.Query(c.flavorify(query), args...)
+	return c.sqlDB.Query(query, args...)
 }
 
 func (c *sqlConnection) QueryRow(query string, args ...interface{}) *sql.Row {
-	return c.sqlDB.QueryRow(c.flavorify(query), args...)
+	return c.sqlDB.QueryRow(query, args...)
 }
 
 func (c *sqlConnection) Begin() (*sql.Tx, error) {

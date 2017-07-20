@@ -74,10 +74,6 @@ func (c *mysqlVariant) Connect() (sqlshim.SqlDB, error) {
 	return sqlDB, err
 }
 
-func (c *mysqlVariant) Flavorify(query string) string {
-	return query
-}
-
 func (c *mysqlVariant) Close() error {
 	return nil
 }

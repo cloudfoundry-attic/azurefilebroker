@@ -27,6 +27,7 @@ const (
 const (
 	driverName       string = "smbdriver"
 	deviceTypeShared string = "shared"
+	databseVersion   string = "1.0"
 )
 
 const (
@@ -104,11 +105,12 @@ type staticState struct {
 }
 
 type FileShare struct {
-	InstanceID    string `json:"instance_id"`
-	FileShareName string `json:"file_share_name"`
-	IsCreated     bool   `json:"is_created"` // true if it is created by the broker.
-	Count         int    `json:"count"`
-	URL           string `json:"url"`
+	InstanceID     string `json:"instance_id"`
+	FileShareName  string `json:"file_share_name"`
+	IsCreated      bool   `json:"is_created"` // true if it is created by the broker.
+	Count          int    `json:"count"`
+	URL            string `json:"url"`
+	DatabseVersion string `json:"database_version"`
 }
 
 func getFileShareID(instanceID, fileShareName string) string {
@@ -135,6 +137,7 @@ type ServiceInstance struct {
 	IsCreatedStorageAccount bool            `json:"is_created_storage_account"`
 	OperationStatus         OperationStatus `json:"operation_status"`
 	OperationURL            string          `json:"operation_url"`
+	DatabseVersion          string          `json:"database_version"`
 }
 
 type lock interface {
@@ -248,6 +251,7 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 		storageAccount.IsCreatedStorageAccount,
 		StatusSuccess,
 		"",
+		databseVersion,
 	}
 
 	err = b.store.CreateServiceInstance(instanceID, serviceInstance)
@@ -402,11 +406,12 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 
 		logger.Info("retrieve-file-share", lager.Data{"message": fmt.Sprintf("%s does not exist", fileShareID)})
 		fileShare = FileShare{
-			InstanceID:    instanceID,
-			FileShareName: fileShareName,
-			IsCreated:     false,
-			Count:         0,
-			URL:           "",
+			InstanceID:     instanceID,
+			FileShareName:  fileShareName,
+			IsCreated:      false,
+			Count:          0,
+			URL:            "",
+			DatabseVersion: databseVersion,
 		}
 		err = nil
 	}

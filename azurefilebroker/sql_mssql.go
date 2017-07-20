@@ -92,10 +92,6 @@ func (c *mssqlVariant) Connect() (sqlshim.SqlDB, error) {
 	return sqlDB, err
 }
 
-func (c *mssqlVariant) Flavorify(query string) string {
-	return query
-}
-
 func (c *mssqlVariant) Close() error {
 	if c.caCert != "" {
 		return c.os.Remove(c.caCert)
@@ -105,7 +101,7 @@ func (c *mssqlVariant) Close() error {
 
 func (c *mssqlVariant) GetCreateTablesSQL() []string {
 	return []string{
-		`IF NOT EXISTS (SELECT * from sys.databases WHERE name='service_instances')
+		`IF NOT EXISTS (SELECT * from sys.objects WHERE name='service_instances' and type = 'U')
 		BEGIN
 			CREATE TABLE service_instances(
 				id VARCHAR(255) PRIMARY KEY,
@@ -116,14 +112,14 @@ func (c *mssqlVariant) GetCreateTablesSQL() []string {
 				CONSTRAINT storage_account UNIQUE (organization_guid, space_guid, storage_account_name)
 			)
 		END`,
-		`IF NOT EXISTS (SELECT * from sys.databases WHERE name='service_bindings')
+		`IF NOT EXISTS (SELECT * from sys.objects WHERE name='service_bindings' and type = 'U')
 		BEGIN
 			CREATE TABLE service_bindings(
 				id VARCHAR(255) PRIMARY KEY,
 				value VARCHAR(4096)
 			)
 		END`,
-		`IF NOT EXISTS (SELECT * from sys.databases WHERE name='file_shares')
+		`IF NOT EXISTS (SELECT * from sys.objects WHERE name = 'file_shares' and type = 'U')
 		BEGIN
 			CREATE TABLE file_shares(
 				id VARCHAR(255) PRIMARY KEY,
@@ -134,13 +130,46 @@ func (c *mssqlVariant) GetCreateTablesSQL() []string {
 				CONSTRAINT file_share UNIQUE (instance_id, file_share_name)
 			)
 		END`,
+		`IF NOT EXISTS (SELECT * from sys.procedures WHERE name = 'GetAppLockForUpdate' and type = 'P')
+		BEGIN
+			EXECUTE sp_executesql N'CREATE PROCEDURE GetAppLockForUpdate
+				@LockName NVARCHAR(255),
+				@Timeout INT
+			AS
+			BEGIN
+				SET @Timeout = @Timeout * 1000;
+				DECLARE @rc INT = 0;
+				EXEC @rc = SP_GETAPPLOCK @Resource = @LockName, @LockTimeout = @Timeout, @LockMode = "Exclusive", @LockOwner = "Session";
+				SELECT "RESULT" = CASE WHEN @rc < 0 THEN 0 ELSE 1 END;
+			END'
+		END`,
+		`IF NOT EXISTS (SELECT * from sys.procedures WHERE name = 'ReleaseAppLockForUpdate' and type = 'P')
+		BEGIN
+			EXECUTE sp_executesql N'CREATE PROCEDURE ReleaseAppLockForUpdate
+				@LockName NVARCHAR(255)
+			AS
+			BEGIN
+				DECLARE @rc INT = 0;
+				EXEC @rc = SP_RELEASEAPPLOCK @Resource = @LockName, @LockOwner = "Session";
+				SELECT "RESULT" = CASE WHEN @rc < 0 THEN 0 ELSE 1 END;
+			END'
+		END`,
+		`IF NOT EXISTS (SELECT * from sys.procedures WHERE name = 'ReleaseAppLockForUpdate' and type = 'P')
+		BEGIN
+			EXECUTE sp_executesql N'CREATE PROCEDURE ReleaseAppLockForUpdate
+				@LockName NVARCHAR(255)
+			AS
+			BEGIN
+				EXEC SP_RELEASEAPPLOCK @Resource = @LockName, @LockOwner = "Session";
+			END'
+		END`,
 	}
 }
 
 func (c *mssqlVariant) GetAppLockSQL() string {
-	return "SP_GETAPPLOCK @Resource = ?, @LockTimeout = ?, @LockMode = 'Exclusive', @LockOwner = 'Session'"
+	return "GetAppLockForUpdate @LockName = ?, @Timeout = ?"
 }
 
 func (c *mssqlVariant) GetReleaseAppLockSQL() string {
-	return "SP_RELEASEAPPLOCK @Resource = ?, @LockOwner = 'Session'"
+	return "ReleaseAppLockForUpdate @LockName = ?"
 }
