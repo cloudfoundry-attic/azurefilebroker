@@ -86,7 +86,7 @@ var allowedOptions = flag.String(
 var defaultOptions = flag.String(
 	"defaultOptions",
 	"vers:3.0",
-	"A comma separated list of defaults specified as param:value. If a parameter has a default value and is not in the allowed list, this default value becomes a fixed value that cannot be overridden",
+	"A comma separated list of defaults specified as param:value. If a parameter has a default value and is not in the allowed list, this default value becomes a fixed value that cannot be overridden.",
 )
 
 // Azure

@@ -100,8 +100,8 @@ func (options BindOptions) ToMap() map[string]string {
 }
 
 type staticState struct {
-	ServiceName string `json:"ServiceName"`
-	ServiceID   string `json:"ServiceID"`
+	ServiceName string `json:"service_name"`
+	ServiceID   string `json:"service_id"`
 }
 
 type FileShare struct {
@@ -117,12 +117,16 @@ func getFileShareID(instanceID, fileShareName string) string {
 	return fmt.Sprintf("%s-%s", instanceID, fileShareName)
 }
 
+// OperationStatus  The status of a storage account
 type OperationStatus string
 
 const (
-	StatusPending    OperationStatus = "Pending"
+	// StatusPending  When receiving provision request to create a storage account
+	StatusPending OperationStatus = "Pending"
+	// StatusInProgress  When sending provision response to create a storage account
 	StatusInProgress OperationStatus = "InProgress"
-	StatusSuccess    OperationStatus = "Success"
+	// StatusSuccess  When a storage account exists or is created successfully
+	StatusSuccess OperationStatus = "Success"
 )
 
 type ServiceInstance struct {
