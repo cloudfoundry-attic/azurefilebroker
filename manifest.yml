@@ -1,6 +1,8 @@
 ---
   buildpack: binary_buildpack
-  command: bin/azurefilebroker --logLevel=debug --dataDir=./ --tenanID='' --clientID='' --clientSecret='' --defaultSubscriptionID='' --defaultResourceGroupName='' --allowCreateStorageAccount=false --allowDeleteFileShare=true
+  command: bin/azurefilebroker --logLevel=debug --tenanID='' --clientID='' --clientSecret='' --defaultSubscriptionID='' --defaultResourceGroupName='' --allowCreateStorageAccount=false --allowDeleteFileShare=true --dbDriver='mssql' --dbHostname='' --dbPort='1433' --dbName='' --dbCACert='true'
   env:
-    USERNAME: admin
-    PASSWORD: admin
+    USERNAME: admin    # Username for your broker
+    PASSWORD: admin    # Password for your broker
+    DB_USERNAME: admin # Username for the database which stores the data for your broker
+    DB_PASSWORD: admin # Password for the database which stores the data for your broker
