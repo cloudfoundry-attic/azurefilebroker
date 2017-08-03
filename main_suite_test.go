@@ -12,7 +12,7 @@ var binaryPath string
 
 func TestAzurefilebroker(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Azurefilebroker Suite")
+	RunSpecs(t, "Azurefilebroker Main Suite")
 }
 
 var _ = SynchronizedBeforeSuite(func() []byte {

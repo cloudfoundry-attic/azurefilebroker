@@ -136,7 +136,7 @@ var _ = Describe("Main", func() {
 		var (
 			args                             []string
 			listenAddr                       string
-			tempDir                          string
+			dbDriver                         string
 			username, password               string
 			tenantID, clientID, clientSecret string
 
@@ -145,18 +145,18 @@ var _ = Describe("Main", func() {
 
 		BeforeEach(func() {
 			listenAddr = "0.0.0.0:" + strconv.Itoa(9000+GinkgoParallelNode())
+			dbDriver = "mssql"
 			username = "admin"
 			password = "password"
 			tenantID = "tenant"
 			clientID = "admin"
 			clientSecret = "password"
-			tempDir = os.TempDir()
 
 			os.Setenv("USERNAME", username)
 			os.Setenv("PASSWORD", password)
 
 			args = append(args, "-listenAddr", listenAddr)
-			args = append(args, "-dataDir", tempDir)
+			args = append(args, "-dbDriver", dbDriver)
 			args = append(args, "-tenantID", tenantID)
 			args = append(args, "-clientID", clientID)
 			args = append(args, "-clientSecret", clientSecret)
