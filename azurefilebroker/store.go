@@ -11,7 +11,7 @@ import (
 	"github.com/pivotal-cf/brokerapi"
 )
 
-//go:generate counterfeiter -o ./azurefilebrokerfakes/fake_store.go src/github.com/AbelHu/azurefilebroker/azurefilebroker/Store Store
+//go:generate counterfeiter -o azurefilebrokerfakes/fake_store.go . Store
 type Store interface {
 	RetrieveServiceInstance(id string) (ServiceInstance, error)
 	RetrieveBindingDetails(id string) (brokerapi.BindDetails, error)

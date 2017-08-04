@@ -17,7 +17,7 @@ type DBInitialize interface {
 	GetInitializeDatabaseSQL() []string
 }
 
-//go:generate counterfeiter -o ../azurefilebrokerfakes/fake_sql_variant.go . SqlVariant
+//go:generate counterfeiter -o azurefilebrokerfakes/fake_sql_variant.go . SqlVariant
 type SqlVariant interface {
 	Connect() (sqlshim.SqlDB, error)
 
@@ -25,7 +25,7 @@ type SqlVariant interface {
 	AppLock
 }
 
-//go:generate counterfeiter -o ../azurefilebrokerfakes/fake_sql_connection.go . SqlConnection
+//go:generate counterfeiter -o azurefilebrokerfakes/fake_sql_connection.go . SqlConnection
 type SqlConnection interface {
 	Connect() error
 	sqlshim.SqlDB
