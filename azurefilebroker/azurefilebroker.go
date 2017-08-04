@@ -79,10 +79,10 @@ type BindOptions struct {
 func (options BindOptions) ToMap() map[string]string {
 	ret := make(map[string]string)
 	if options.UID != "" {
-		ret["uid"] = fmt.Sprintf("%#v", options.UID)
+		ret["uid"] = options.UID
 	}
 	if options.GID != "" {
-		ret["gid"] = fmt.Sprintf("%#v", options.GID)
+		ret["gid"] = options.GID
 	}
 	if options.FileMode != "" {
 		ret["file_mode"] = options.FileMode
