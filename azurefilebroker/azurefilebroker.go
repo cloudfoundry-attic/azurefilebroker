@@ -293,9 +293,12 @@ func (b *Broker) getStorageAccount(logger lager.Logger, configuration Configurat
 		return nil, fmt.Errorf("The storage account %q does not exist under the resource group %q in the subscription %q and the administrator does not allow to create it automatically", storageAccount.StorageAccountName, storageAccount.ResourceGroupName, storageAccount.SubscriptionID)
 	}
 
-	if err := storageAccount.Create(); err != nil {
-		return nil, fmt.Errorf("Failed to create the storage account %q under the resource group %q in the subscription %q: %v", storageAccount.StorageAccountName, storageAccount.ResourceGroupName, storageAccount.SubscriptionID, err)
-	}
+	// TBD
+	/*
+		if err := createStorageAccount(); err != nil {
+			return nil, fmt.Errorf("Failed to create the storage account %q under the resource group %q in the subscription %q: %v", storageAccount.StorageAccountName, storageAccount.ResourceGroupName, storageAccount.SubscriptionID, err)
+		}
+	*/
 	storageAccount.IsCreatedStorageAccount = true
 
 	return storageAccount, nil
@@ -331,9 +334,11 @@ func (b *Broker) Deprovision(context context.Context, instanceID string, details
 		if ok, err := storageAccount.Exists(); err != nil {
 			return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("Failed to delete the storage account %q under the resource group %q in the subscription %q: %v", serviceInstance.StorageAccountName, serviceInstance.ResourceGroupName, serviceInstance.SubscriptionID, err)
 		} else if ok {
-			if err := storageAccount.Delete(); err != nil {
-				return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("Failed to delete the storage account %q under the resource group %q in the subscription %q: %v", serviceInstance.StorageAccountName, serviceInstance.ResourceGroupName, serviceInstance.SubscriptionID, err)
-			}
+			// TBD
+			/*
+				if err := deleteStorageAccount(); err != nil {
+					return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("Failed to delete the storage account %q under the resource group %q in the subscription %q: %v", serviceInstance.StorageAccountName, serviceInstance.ResourceGroupName, serviceInstance.SubscriptionID, err)
+				}*/
 		}
 	}
 

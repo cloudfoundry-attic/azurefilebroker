@@ -210,7 +210,7 @@ func (account *StorageAccount) Exists() (bool, error) {
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if _, err := account.GetBaseURL(); err != nil {
+	if _, err := account.getBaseURL(); err != nil {
 		if strings.Contains(err.Error(), resourceNotFound) {
 			err = nil
 		}
@@ -219,7 +219,7 @@ func (account *StorageAccount) Exists() (bool, error) {
 	return true, nil
 }
 
-func (account *StorageAccount) GetBaseURL() (string, error) {
+func (account *StorageAccount) getBaseURL() (string, error) {
 	logger := account.logger.Session("get-base-url")
 	logger.Info("start")
 	defer logger.Info("end")
@@ -258,67 +258,6 @@ func parseBaseURL(fileEndpoint string) (string, error) {
 	return result[3], nil
 }
 
-func (account *StorageAccount) Create() error {
-	logger := account.logger.Session("Create")
-	logger.Info("start")
-	defer logger.Info("end")
-
-	cancel := make(chan struct{})
-	sku := storage.Sku{
-		Name: account.SkuName,
-		Tier: storage.Standard,
-	}
-	tags := map[string]*string{creator: &userAgent}
-	encryptionService := storage.EncryptionService{
-		Enabled: &account.EnableEncryption,
-	}
-	encryption := storage.Encryption{
-		Services: &storage.EncryptionServices{
-			File: &encryptionService,
-			Blob: &encryptionService,
-		},
-		KeySource: &encryptionKeySource,
-	}
-	customDomain := storage.CustomDomain{
-		Name:         &account.CustomDomainName,
-		UseSubDomain: &account.UseSubDomain,
-	}
-	properties := storage.AccountPropertiesCreateParameters{
-		CustomDomain:           &customDomain,
-		Encryption:             &encryption,
-		EnableHTTPSTrafficOnly: &account.UseHTTPS,
-	}
-	parameters := storage.AccountCreateParameters{
-		Sku:      &sku,
-		Kind:     storage.Storage,
-		Location: &account.Location,
-		Tags:     &tags,
-		AccountPropertiesCreateParameters: &properties,
-	}
-	_, errchan := account.storageManagementClient.Create(account.ResourceGroupName, account.StorageAccountName, parameters, cancel)
-	if err := <-errchan; err != nil {
-		logger.Error("create-storage-account", err, lager.Data{
-			"ResourceGroupName": account.ResourceGroupName,
-			"parameters":        parameters,
-		})
-		return fmt.Errorf("%v", err)
-	}
-	return nil
-}
-
-func (account *StorageAccount) Delete() error {
-	logger := account.logger.Session("Delete")
-	logger.Info("start")
-	defer logger.Info("end")
-
-	_, err := account.storageManagementClient.Delete(account.ResourceGroupName, account.StorageAccountName)
-	if err != nil {
-		// TBD: return nil when the storage account does not exist
-		logger.Error("delete-storage-account", err, lager.Data{"ResourceGroupName": account.ResourceGroupName})
-	}
-	return err
-}
-
 func (account *StorageAccount) GetAccessKey() (string, error) {
 	logger := account.logger.Session("get-access-key")
 	logger.Info("start")
@@ -351,7 +290,7 @@ func (account *StorageAccount) initFileServiceClient() error {
 	}
 
 	if account.baseURL == "" {
-		if _, err := account.GetBaseURL(); err != nil {
+		if _, err := account.getBaseURL(); err != nil {
 			return err
 		}
 	}
@@ -432,7 +371,7 @@ func (account *StorageAccount) GetShareURL(fileShareName string) (string, error)
 	defer logger.Info("end")
 
 	if account.baseURL == "" {
-		if _, err := account.GetBaseURL(); err != nil {
+		if _, err := account.getBaseURL(); err != nil {
 			return "", err
 		}
 	}
