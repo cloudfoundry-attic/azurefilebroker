@@ -274,15 +274,20 @@ func (b *Broker) getStorageAccount(logger lager.Logger, configuration Configurat
 	logger.Info("start")
 	defer logger.Info("end")
 
-	storageAccount, err := NewStorageAccount(
+	storageAccount, err := NewStorageAccount(logger, configuration)
+	if err != nil {
+		return nil, err
+	}
+	storageAccount.Connection, err = NewAzureStorageAccountSDKClient(
 		logger,
 		&b.config.cloud,
-		configuration)
+		storageAccount,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	if exist, err := storageAccount.Exists(); err != nil {
+	if exist, err := storageAccount.Connection.Exists(); err != nil {
 		return nil, fmt.Errorf("Failed to check whether storage account exists: %v", err)
 	} else if exist {
 		logger.Debug("check-storage-account-exist", lager.Data{
@@ -321,7 +326,6 @@ func (b *Broker) Deprovision(context context.Context, instanceID string, details
 	if serviceInstance.IsCreatedStorageAccount && b.config.cloud.Control.AllowDeleteStorageAccount {
 		storageAccount, err := NewStorageAccount(
 			logger,
-			&b.config.cloud,
 			Configuration{
 				SubscriptionID:     serviceInstance.SubscriptionID,
 				ResourceGroupName:  serviceInstance.ResourceGroupName,
@@ -331,7 +335,15 @@ func (b *Broker) Deprovision(context context.Context, instanceID string, details
 		if err != nil {
 			return brokerapi.DeprovisionServiceSpec{}, err
 		}
-		if ok, err := storageAccount.Exists(); err != nil {
+		storageAccount.Connection, err = NewAzureStorageAccountSDKClient(
+			logger,
+			&b.config.cloud,
+			storageAccount,
+		)
+		if err != nil {
+			return brokerapi.DeprovisionServiceSpec{}, err
+		}
+		if ok, err := storageAccount.Connection.Exists(); err != nil {
 			return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("Failed to delete the storage account %q under the resource group %q in the subscription %q: %v", serviceInstance.StorageAccountName, serviceInstance.ResourceGroupName, serviceInstance.SubscriptionID, err)
 		} else if ok {
 			// TBD
@@ -467,11 +479,10 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 		return brokerapi.Binding{}, err
 	}
 
-	accessKey, err := storageAccount.GetAccessKey()
+	mountConfig["password"], err = storageAccount.Connection.GetAccessKey()
 	if err != nil {
 		return brokerapi.Binding{}, err
 	}
-	mountConfig["password"] = accessKey
 
 	volumeID := fmt.Sprintf("%s-%s", instanceID, s)
 
@@ -499,7 +510,6 @@ func (b *Broker) handleBindShare(logger lager.Logger, serviceInstance *ServiceIn
 
 	storageAccount, err := NewStorageAccount(
 		logger,
-		&b.config.cloud,
 		Configuration{
 			SubscriptionID:     serviceInstance.SubscriptionID,
 			ResourceGroupName:  serviceInstance.ResourceGroupName,
@@ -509,8 +519,16 @@ func (b *Broker) handleBindShare(logger lager.Logger, serviceInstance *ServiceIn
 	if err != nil {
 		return nil, err
 	}
+	storageAccount.Connection, err = NewAzureStorageAccountSDKClient(
+		logger,
+		&b.config.cloud,
+		storageAccount,
+	)
+	if err != nil {
+		return nil, err
+	}
 
-	exist, err := storageAccount.HasFileShare(share.FileShareName)
+	exist, err := storageAccount.Connection.HasFileShare(share.FileShareName)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to check whether the file share %q exists: %v", share.FileShareName, err)
 	}
@@ -518,7 +536,7 @@ func (b *Broker) handleBindShare(logger lager.Logger, serviceInstance *ServiceIn
 	if exist {
 		share.Count++
 		if share.URL == "" {
-			shareURL, err := storageAccount.GetShareURL(share.FileShareName)
+			shareURL, err := storageAccount.Connection.GetShareURL(share.FileShareName)
 			if err != nil {
 				return nil, err
 			}
@@ -529,12 +547,12 @@ func (b *Broker) handleBindShare(logger lager.Logger, serviceInstance *ServiceIn
 		if !b.config.cloud.Control.AllowCreateFileShare {
 			return nil, fmt.Errorf("The file share %q does not exist in the storage account %q and the administrator does not allow to create it automatically", share.FileShareName, storageAccount.StorageAccountName)
 		}
-		if err := storageAccount.CreateFileShare(share.FileShareName); err != nil {
+		if err := storageAccount.Connection.CreateFileShare(share.FileShareName); err != nil {
 			return nil, fmt.Errorf("Failed to create file share %q in the storage account %q: %v", share.FileShareName, storageAccount.StorageAccountName, err)
 		}
 		share.IsCreated = true
 		share.Count = 1
-		shareURL, err := storageAccount.GetShareURL(share.FileShareName)
+		shareURL, err := storageAccount.Connection.GetShareURL(share.FileShareName)
 		if err != nil {
 			return nil, err
 		}
@@ -640,7 +658,6 @@ func (b *Broker) handleUnbindShare(logger lager.Logger, serviceInstance *Service
 	if share.IsCreated && b.config.cloud.Control.AllowDeleteFileShare {
 		storageAccount, err := NewStorageAccount(
 			logger,
-			&b.config.cloud,
 			Configuration{
 				SubscriptionID:     serviceInstance.SubscriptionID,
 				ResourceGroupName:  serviceInstance.ResourceGroupName,
@@ -650,8 +667,16 @@ func (b *Broker) handleUnbindShare(logger lager.Logger, serviceInstance *Service
 		if err != nil {
 			return err
 		}
+		storageAccount.Connection, err = NewAzureStorageAccountSDKClient(
+			logger,
+			&b.config.cloud,
+			storageAccount,
+		)
+		if err != nil {
+			return err
+		}
 
-		if err := storageAccount.DeleteFileShare(share.FileShareName); err != nil {
+		if err := storageAccount.Connection.DeleteFileShare(share.FileShareName); err != nil {
 			return fmt.Errorf("Faied to delete the file share %q in the storage account %q: %v", share.FileShareName, serviceInstance.StorageAccountName, err)
 		}
 	}

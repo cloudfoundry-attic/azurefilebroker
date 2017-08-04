@@ -92,43 +92,35 @@ var Environments = map[string]Environment{
 }
 
 type StorageAccount struct {
-	logger                   lager.Logger
-	cloudConfig              *CloudConfig
-	SubscriptionID           string
-	ResourceGroupName        string
-	StorageAccountName       string
-	UseHTTPS                 bool
-	SkuName                  storage.SkuName
-	Location                 string
-	CustomDomainName         string
-	UseSubDomain             bool
-	EnableEncryption         bool
-	IsCreatedStorageAccount  bool
-	accessKey                string
-	baseURL                  string
-	storageManagementClient  *storage.AccountsClient
-	storageFileServiceClient *file.Client
+	SubscriptionID          string
+	ResourceGroupName       string
+	StorageAccountName      string
+	UseHTTPS                bool
+	SkuName                 storage.SkuName
+	Location                string
+	CustomDomainName        string
+	UseSubDomain            bool
+	EnableEncryption        bool
+	IsCreatedStorageAccount bool
+	AccessKey               string
+	BaseURL                 string
+	Connection              AzureStorageAccountSDKClient
 }
 
-func NewStorageAccount(logger lager.Logger, cloudConfig *CloudConfig, configuration Configuration) (*StorageAccount, error) {
+func NewStorageAccount(logger lager.Logger, configuration Configuration) (*StorageAccount, error) {
 	logger = logger.Session("storage-account").WithData(lager.Data{"StorageAccountName": configuration.StorageAccountName})
 	storageAccount := StorageAccount{
-		logger:                   logger,
-		cloudConfig:              cloudConfig,
-		SubscriptionID:           configuration.SubscriptionID,
-		ResourceGroupName:        configuration.ResourceGroupName,
-		StorageAccountName:       configuration.StorageAccountName,
-		SkuName:                  storage.StandardRAGRS,
-		Location:                 locationWestUS,
-		UseHTTPS:                 true,
-		CustomDomainName:         "",
-		UseSubDomain:             false,
-		EnableEncryption:         false,
-		IsCreatedStorageAccount:  false,
-		accessKey:                "",
-		baseURL:                  "",
-		storageManagementClient:  nil,
-		storageFileServiceClient: nil,
+		SubscriptionID:          configuration.SubscriptionID,
+		ResourceGroupName:       configuration.ResourceGroupName,
+		StorageAccountName:      configuration.StorageAccountName,
+		SkuName:                 storage.StandardRAGRS,
+		Location:                locationWestUS,
+		UseHTTPS:                true,
+		CustomDomainName:        "",
+		UseSubDomain:            false,
+		EnableEncryption:        false,
+		IsCreatedStorageAccount: false,
+		Connection:              nil,
 	}
 
 	if configuration.UseHTTPS != "" {
@@ -161,22 +153,51 @@ func NewStorageAccount(logger lager.Logger, cloudConfig *CloudConfig, configurat
 		}
 	}
 
-	if err := storageAccount.initManagementClient(); err != nil {
-		return nil, err
-	}
-
 	return &storageAccount, nil
 }
 
-func (account *StorageAccount) initManagementClient() error {
-	logger := account.logger.Session("init-management-client")
+//go:generate counterfeiter -o azurefilebrokerfakes/fake_azure_storage_account_sdk_client.go . AzureStorageAccountSDKClient
+type AzureStorageAccountSDKClient interface {
+	Exists() (bool, error)
+	GetAccessKey() (string, error)
+	HasFileShare(fileShareName string) (bool, error)
+	CreateFileShare(fileShareName string) error
+	DeleteFileShare(fileShareName string) error
+	GetShareURL(fileShareName string) (string, error)
+}
+
+type AzureStorageConnection struct {
+	logger                   lager.Logger
+	cloudConfig              *CloudConfig
+	StorageAccount           *StorageAccount
+	storageManagementClient  *storage.AccountsClient
+	storageFileServiceClient *file.Client
+}
+
+func NewAzureStorageAccountSDKClient(logger lager.Logger, cloudConfig *CloudConfig, storageAccount *StorageAccount) (AzureStorageAccountSDKClient, error) {
+	logger = logger.Session("storage-connection").WithData(lager.Data{"StorageAccountName": storageAccount.StorageAccountName})
+	connection := AzureStorageConnection{
+		logger:                   logger,
+		cloudConfig:              cloudConfig,
+		StorageAccount:           storageAccount,
+		storageManagementClient:  nil,
+		storageFileServiceClient: nil,
+	}
+	if err := connection.initManagementClient(); err != nil {
+		return nil, err
+	}
+	return &connection, nil
+}
+
+func (c *AzureStorageConnection) initManagementClient() error {
+	logger := c.logger.Session("init-management-client")
 	logger.Info("start")
 	defer logger.Info("end")
 
-	environment := account.cloudConfig.Azure.Environment
-	tenantID := account.cloudConfig.Azure.TenanID
-	clientID := account.cloudConfig.Azure.ClientID
-	clientSecret := account.cloudConfig.Azure.ClientSecret
+	environment := c.cloudConfig.Azure.Environment
+	tenantID := c.cloudConfig.Azure.TenanID
+	clientID := c.cloudConfig.Azure.ClientID
+	clientSecret := c.cloudConfig.Azure.ClientSecret
 	oauthConfig, err := adal.NewOAuthConfig(Environments[environment].ActiveDirectoryEndpointURL, tenantID)
 	if err != nil {
 		logger.Error("newO-auth-config", err, lager.Data{
@@ -199,18 +220,18 @@ func (account *StorageAccount) initManagementClient() error {
 		return fmt.Errorf("Error in initManagementClient: %v", err)
 	}
 
-	client := storage.NewAccountsClientWithBaseURI(resourceManagerEndpointURL, account.SubscriptionID)
-	account.storageManagementClient = &client
-	account.storageManagementClient.Authorizer = autorest.NewBearerAuthorizer(spt)
+	client := storage.NewAccountsClientWithBaseURI(resourceManagerEndpointURL, c.StorageAccount.SubscriptionID)
+	c.storageManagementClient = &client
+	c.storageManagementClient.Authorizer = autorest.NewBearerAuthorizer(spt)
 	return nil
 }
 
-func (account *StorageAccount) Exists() (bool, error) {
-	logger := account.logger.Session("exists")
+func (c *AzureStorageConnection) Exists() (bool, error) {
+	logger := c.logger.Session("exists")
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if _, err := account.getBaseURL(); err != nil {
+	if err := c.getBaseURL(); err != nil {
 		if strings.Contains(err.Error(), resourceNotFound) {
 			err = nil
 		}
@@ -219,33 +240,33 @@ func (account *StorageAccount) Exists() (bool, error) {
 	return true, nil
 }
 
-func (account *StorageAccount) getBaseURL() (string, error) {
-	logger := account.logger.Session("get-base-url")
+func (c *AzureStorageConnection) getBaseURL() error {
+	logger := c.logger.Session("get-base-url")
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if account.baseURL == "" {
-		result, err := account.getStorageAccountProperties()
+	if c.StorageAccount.BaseURL == "" {
+		result, err := c.getStorageAccountProperties()
 		if err != nil {
-			logger.Error("get-storage-account-properties", err)
-			return "", err
+			logger.Error("get-storage-c-properties", err)
+			return err
 		}
-		account.baseURL, err = parseBaseURL(*result.AccountProperties.PrimaryEndpoints.File)
+		c.StorageAccount.BaseURL, err = parseBaseURL(*result.AccountProperties.PrimaryEndpoints.File)
 		if err != nil {
 			logger.Error("parse-base-url", err)
-			return "", err
+			return err
 		}
 	}
 
-	return account.baseURL, nil
+	return nil
 }
 
-func (account *StorageAccount) getStorageAccountProperties() (storage.Account, error) {
-	logger := account.logger.Session("getStorageAccountProperties").WithData(lager.Data{"StorageAccountName": account.StorageAccountName})
+func (c *AzureStorageConnection) getStorageAccountProperties() (storage.Account, error) {
+	logger := c.logger.Session("getStorageAccountProperties")
 	logger.Info("start")
 	defer logger.Info("end")
 
-	result, err := account.storageManagementClient.GetProperties(account.ResourceGroupName, account.StorageAccountName)
+	result, err := c.storageManagementClient.GetProperties(c.StorageAccount.ResourceGroupName, c.StorageAccount.StorageAccountName)
 	return result, err
 }
 
@@ -258,68 +279,68 @@ func parseBaseURL(fileEndpoint string) (string, error) {
 	return result[3], nil
 }
 
-func (account *StorageAccount) GetAccessKey() (string, error) {
-	logger := account.logger.Session("get-access-key")
+func (c *AzureStorageConnection) GetAccessKey() (string, error) {
+	logger := c.logger.Session("get-access-key")
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if account.accessKey == "" {
-		result, err := account.storageManagementClient.ListKeys(account.ResourceGroupName, account.StorageAccountName)
+	if c.StorageAccount.AccessKey == "" {
+		result, err := c.storageManagementClient.ListKeys(c.StorageAccount.ResourceGroupName, c.StorageAccount.StorageAccountName)
 		if err != nil {
-			logger.Error("list-keys", err, lager.Data{"ResourceGroupName": account.ResourceGroupName})
+			logger.Error("list-keys", err, lager.Data{"ResourceGroupName": c.StorageAccount.ResourceGroupName})
 			return "", fmt.Errorf("Failed to list keys: %v", err)
 		}
-		account.accessKey = *(*result.Keys)[0].Value
+		c.StorageAccount.AccessKey = *(*result.Keys)[0].Value
 	}
-	return account.accessKey, nil
+	return c.StorageAccount.AccessKey, nil
 }
 
-func (account *StorageAccount) initFileServiceClient() error {
-	logger := account.logger.Session("init-file-service-client")
+func (c *AzureStorageConnection) initFileServiceClient() error {
+	logger := c.logger.Session("init-file-service-client")
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if account.storageFileServiceClient != nil {
+	if c.storageFileServiceClient != nil {
 		return nil
 	}
 
-	if account.accessKey == "" {
-		if _, err := account.GetAccessKey(); err != nil {
+	if c.StorageAccount.AccessKey == "" {
+		if _, err := c.GetAccessKey(); err != nil {
 			return err
 		}
 	}
 
-	if account.baseURL == "" {
-		if _, err := account.getBaseURL(); err != nil {
+	if c.StorageAccount.BaseURL == "" {
+		if err := c.getBaseURL(); err != nil {
 			return err
 		}
 	}
 
-	environment := account.cloudConfig.Azure.Environment
+	environment := c.cloudConfig.Azure.Environment
 	apiVersion := Environments[environment].APIVersions.Storage
-	client, err := file.NewClient(account.StorageAccountName, account.accessKey, account.baseURL, apiVersion, account.UseHTTPS)
+	client, err := file.NewClient(c.StorageAccount.StorageAccountName, c.StorageAccount.AccessKey, c.StorageAccount.BaseURL, apiVersion, c.StorageAccount.UseHTTPS)
 	if err != nil {
 		logger.Error("new-file-client", err, lager.Data{
-			"baseURL":    account.baseURL,
+			"baseURL":    c.StorageAccount.BaseURL,
 			"apiVersion": apiVersion,
-			"UseHTTPS":   account.UseHTTPS,
+			"UseHTTPS":   c.StorageAccount.UseHTTPS,
 		})
 		return err
 	}
-	account.storageFileServiceClient = &client
-	account.storageFileServiceClient.AddToUserAgent(userAgent)
+	c.storageFileServiceClient = &client
+	c.storageFileServiceClient.AddToUserAgent(userAgent)
 	return nil
 }
 
-func (account *StorageAccount) HasFileShare(fileShareName string) (bool, error) {
-	logger := account.logger.Session("has-file-share").WithData(lager.Data{"FileShareName": fileShareName})
+func (c *AzureStorageConnection) HasFileShare(fileShareName string) (bool, error) {
+	logger := c.logger.Session("has-file-share").WithData(lager.Data{"FileShareName": fileShareName})
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if err := account.initFileServiceClient(); err != nil {
+	if err := c.initFileServiceClient(); err != nil {
 		return false, err
 	}
-	fileService := account.storageFileServiceClient.GetFileService()
+	fileService := c.storageFileServiceClient.GetFileService()
 	share := fileService.GetShareReference(fileShareName)
 	exists, err := share.Exists()
 	if err != nil {
@@ -328,15 +349,15 @@ func (account *StorageAccount) HasFileShare(fileShareName string) (bool, error) 
 	return exists, err
 }
 
-func (account *StorageAccount) CreateFileShare(fileShareName string) error {
-	logger := account.logger.Session("create-file-share").WithData(lager.Data{"FileShareName": fileShareName})
+func (c *AzureStorageConnection) CreateFileShare(fileShareName string) error {
+	logger := c.logger.Session("create-file-share").WithData(lager.Data{"FileShareName": fileShareName})
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if err := account.initFileServiceClient(); err != nil {
+	if err := c.initFileServiceClient(); err != nil {
 		return err
 	}
-	fileService := account.storageFileServiceClient.GetFileService()
+	fileService := c.storageFileServiceClient.GetFileService()
 	share := fileService.GetShareReference(fileShareName)
 	options := file.FileRequestOptions{Timeout: fileRequestTimeoutInSeconds}
 	err := share.Create(&options)
@@ -346,15 +367,15 @@ func (account *StorageAccount) CreateFileShare(fileShareName string) error {
 	return err
 }
 
-func (account *StorageAccount) DeleteFileShare(fileShareName string) error {
-	logger := account.logger.Session("delete-file-share").WithData(lager.Data{"FileShareName": fileShareName})
+func (c *AzureStorageConnection) DeleteFileShare(fileShareName string) error {
+	logger := c.logger.Session("delete-file-share").WithData(lager.Data{"FileShareName": fileShareName})
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if err := account.initFileServiceClient(); err != nil {
+	if err := c.initFileServiceClient(); err != nil {
 		return err
 	}
-	fileService := account.storageFileServiceClient.GetFileService()
+	fileService := c.storageFileServiceClient.GetFileService()
 	share := fileService.GetShareReference(fileShareName)
 	options := file.FileRequestOptions{Timeout: fileRequestTimeoutInSeconds}
 	err := share.Delete(&options)
@@ -365,16 +386,16 @@ func (account *StorageAccount) DeleteFileShare(fileShareName string) error {
 	return err
 }
 
-func (account *StorageAccount) GetShareURL(fileShareName string) (string, error) {
-	logger := account.logger.Session("get-share-url").WithData(lager.Data{"FileShareName": fileShareName})
+func (c *AzureStorageConnection) GetShareURL(fileShareName string) (string, error) {
+	logger := c.logger.Session("get-share-url").WithData(lager.Data{"FileShareName": fileShareName})
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if account.baseURL == "" {
-		if _, err := account.getBaseURL(); err != nil {
+	if c.StorageAccount.BaseURL == "" {
+		if err := c.getBaseURL(); err != nil {
 			return "", err
 		}
 	}
 
-	return fmt.Sprintf("//%s.file.%s/%s", account.StorageAccountName, account.baseURL, fileShareName), nil
+	return fmt.Sprintf("//%s.file.%s/%s", c.StorageAccount.StorageAccountName, c.StorageAccount.BaseURL, fileShareName), nil
 }
