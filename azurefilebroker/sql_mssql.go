@@ -56,7 +56,7 @@ func (c *mssqlVariant) Connect() (sqlshim.SqlDB, error) {
 		query := url.Values{}
 		query.Add("encrypt", "true")
 		query.Add("TrustServerCertificate", "false")
-		query.Add("hostNameInCertificate", "*.database.windows.net")
+		query.Add("hostNameInCertificate", c.caCert)
 
 		c.dbConnectionString = fmt.Sprintf("%s&%s", c.dbConnectionString, query.Encode())
 	}

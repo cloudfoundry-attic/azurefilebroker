@@ -70,10 +70,11 @@ var dbName = flag.String(
 	"[REQUIRED] - database name when using SQL to store broker state",
 )
 
+// TBD: Enable mssql tls gracefully
 var dbCACert = flag.String(
 	"dbCACert",
 	"",
-	"(optional) CA Cert to verify SSL connection. For Azure SQL service, you can use non-empty value to enable TLS encryption",
+	"(optional) CA Cert to verify SSL connection. For Azure SQL service, you need to specify the hostNameInCertificate to enable TLS encryption. For AzureCloud, it is *.database.windows.net",
 )
 
 // Bind
@@ -231,7 +232,6 @@ func checkParams() {
 	}
 }
 
-// When the broker is running as a CF application, we use db username and password as broker's credential for cloud controler authentication
 func parseVcapServices(logger lager.Logger) {
 	// populate db parameters from VCAP_SERVICES and pitch a fit if there isn't one.
 	services, hasValue := os.LookupEnv("VCAP_SERVICES")

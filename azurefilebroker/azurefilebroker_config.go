@@ -65,8 +65,7 @@ type ControlConfig struct {
 func NewControlConfig(allowCreateStorageAccount, allowCreateFileShare, allowDeleteStorageAccount, allowDeleteFileShare bool) *ControlConfig {
 	myConf := new(ControlConfig)
 
-	// TBD: Now this broker does not support to create storage account if it does not exist
-	myConf.AllowCreateStorageAccount = false
+	myConf.AllowCreateStorageAccount = allowCreateStorageAccount
 	myConf.AllowCreateFileShare = allowCreateFileShare
 	myConf.AllowDeleteStorageAccount = allowDeleteStorageAccount
 	myConf.AllowDeleteFileShare = allowDeleteFileShare
