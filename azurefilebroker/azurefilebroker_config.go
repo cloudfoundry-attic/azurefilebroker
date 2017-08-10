@@ -19,9 +19,10 @@ type AzureConfig struct {
 	ClientSecret             string
 	DefaultSubscriptionID    string
 	DefaultResourceGroupName string
+	DefaultLocation          string
 }
 
-func NewAzureConfig(environment, tenanID, clientID, clientSecret, defaultSubscriptionID, defaultResourceGroupName string) *AzureConfig {
+func NewAzureConfig(environment, tenanID, clientID, clientSecret, defaultSubscriptionID, defaultResourceGroupName, defaultLocation string) *AzureConfig {
 	myConf := new(AzureConfig)
 
 	myConf.Environment = environment
@@ -30,6 +31,7 @@ func NewAzureConfig(environment, tenanID, clientID, clientSecret, defaultSubscri
 	myConf.ClientSecret = clientSecret
 	myConf.DefaultSubscriptionID = defaultSubscriptionID
 	myConf.DefaultResourceGroupName = defaultResourceGroupName
+	myConf.DefaultLocation = defaultLocation
 
 	return myConf
 }

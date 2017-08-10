@@ -118,13 +118,19 @@ var clientSecret = flag.String(
 var defaultSubscriptionID = flag.String(
 	"defaultSubscriptionID",
 	"",
-	"(optional) - The default Azure Subscription id to use when creating new storage accounts.",
+	"(optional) - The default Azure Subscription id to use for storage accounts.",
 )
 
 var defaultResourceGroupName = flag.String(
 	"defaultResourceGroupName",
 	"",
-	"(optional) - The default resource group name to use when creating new storage accounts.",
+	"(optional) - The default resource group name to use for storage accounts.",
+)
+
+var defaultLocation = flag.String(
+	"defaultLocation",
+	"",
+	"(optional) - The default location to use for creating storage accounts.",
 )
 
 var allowCreateStorageAccount = flag.Bool(
@@ -278,13 +284,14 @@ func createServer(logger lager.Logger) ifrit.Runner {
 		"Options": mount.Options,
 	})
 
-	azureConfig := azurefilebroker.NewAzureConfig(*environment, *tenantID, *clientID, *clientSecret, *defaultSubscriptionID, *defaultResourceGroupName)
+	azureConfig := azurefilebroker.NewAzureConfig(*environment, *tenantID, *clientID, *clientSecret, *defaultSubscriptionID, *defaultResourceGroupName, *defaultLocation)
 	logger.Info("createServer.cloud.azureConfig", lager.Data{
-		"Environment":                         azureConfig.Environment,
-		"TenanID":                             azureConfig.TenanID,
-		"ClientID":                            azureConfig.ClientID,
-		"DefaultSubscriptionID":               azureConfig.DefaultSubscriptionID,
-		"EnvironDefaultResourceGroupNamement": azureConfig.DefaultResourceGroupName,
+		"Environment":              azureConfig.Environment,
+		"TenanID":                  azureConfig.TenanID,
+		"ClientID":                 azureConfig.ClientID,
+		"DefaultSubscriptionID":    azureConfig.DefaultSubscriptionID,
+		"DefaultResourceGroupName": azureConfig.DefaultResourceGroupName,
+		"DefaultLocation":          azureConfig.DefaultLocation,
 	})
 	controlConfig := azurefilebroker.NewControlConfig(*allowCreateStorageAccount, *allowCreateFileShare, *allowDeleteStorageAccount, *allowDeleteFileShare)
 	logger.Info("createServer.cloud.controlConfig", lager.Data{

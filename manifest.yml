@@ -1,6 +1,6 @@
 ---
   buildpack: binary_buildpack
-  command: bin/azurefilebroker --logLevel=debug --listenAddr="0.0.0.0:$PORT" --tenantID='' --clientID='' --clientSecret='' --defaultSubscriptionID='' --defaultResourceGroupName='' --allowCreateStorageAccount=true --allowDeleteFileShare=true --dbDriver='mssql' --dbHostname='' --dbPort='1433' --dbName='' --dbCACert='*.database.windows.net'
+  command: bin/azurefilebroker --logLevel=debug --listenAddr="0.0.0.0:$PORT" --tenantID='' --clientID='' --clientSecret='' --defaultSubscriptionID='' --defaultResourceGroupName='' --defaultLocation='' --allowCreateStorageAccount=true --allowDeleteFileShare=true --dbDriver='mssql' --dbHostname='' --dbPort='1433' --dbName='' --dbCACert='*.database.windows.net'
   env:
     USERNAME: admin    # Username for your broker
     PASSWORD: admin    # Password for your broker
@@ -8,7 +8,7 @@
     DB_PASSWORD: admin # Password for the database which stores the data for your broker
 
   # You should use below manifest if you are using broker as a cf application with binding a database instance to the broker.
-  #command: bin/azurefilebroker --logLevel=debug --listenAddr="0.0.0.0:$PORT" --tenantID='' --clientID='' --clientSecret='' --defaultSubscriptionID='' --defaultResourceGroupName='' --allowCreateStorageAccount=true --allowDeleteFileShare=true --dbDriver='mssql' --cfServiceName 'sqlinstance' --dbCACert='*.database.windows.net'
+  #command: bin/azurefilebroker --logLevel=debug --listenAddr="0.0.0.0:$PORT" --tenantID='' --clientID='' --clientSecret='' --defaultSubscriptionID='' --defaultResourceGroupName='' --defaultLocation='' --allowCreateStorageAccount=true --allowDeleteFileShare=true --dbDriver='mssql' --cfServiceName 'sqlinstance' --dbCACert='*.database.windows.net'
   #env:
   #  USERNAME: admin    # Username for your broker
   #  PASSWORD: admin    # Password for your broker

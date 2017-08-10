@@ -38,15 +38,15 @@ type Configuration struct {
 	SubscriptionID     string `json:"subscription_id"`
 	ResourceGroupName  string `json:"resource_group_name"`
 	StorageAccountName string `json:"storage_account_name"`
+	Location           string `json:"location"`
 	UseHTTPS           string `json:"use_https"` // bool
 	SkuName            string `json:"sku_name"`
-	Location           string `json:"location"`
 	CustomDomainName   string `json:"custom_domain_name"`
 	UseSubDomain       string `json:"use_sub_domain"`    // bool
 	EnableEncryption   string `json:"enable_encryption"` // bool
 }
 
-func (config Configuration) Validate() error {
+func (config *Configuration) Validate() error {
 	missingKeys := []string{}
 	if config.SubscriptionID == "" {
 		missingKeys = append(missingKeys, "subscription_id")
@@ -214,6 +214,10 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 	}
 	if configuration.ResourceGroupName == "" {
 		configuration.ResourceGroupName = b.config.cloud.Azure.DefaultResourceGroupName
+	}
+	// Do not check location in this function because location is only used when the storage account does not exist
+	if configuration.Location == "" {
+		configuration.Location = b.config.cloud.Azure.DefaultLocation
 	}
 
 	if err := configuration.Validate(); err != nil {

@@ -1,2 +1,1 @@
-web: bin/azurefilebroker --listenAddr="0.0.0.0:$PORT" --serviceName="$SERVICENAME" --serviceId="azurefilebroker" --dbDriver="$DBDRIVERNAME" --cfServiceName="$DBSERVICENAME" --dbHostname="$DBHOST" --dbPort="$DBPORT" --dbName="$DBNAME" --dbCACert="$DBCACERT" --logLevel="$LOGLEVEL"
-
+web: bin/azurefilebroker --listenAddr="0.0.0.0:$PORT" --serviceName="$SERVICENAME" --serviceId="azurefilebroker" --tenantID='$TENANTID' --clientID='$CLIENTID' --clientSecret='$CLIENTSECRET' --dbDriver="$DBDRIVERNAME" --cfServiceName="$DBSERVICENAME" --dbHostname="$DBHOST" --dbPort="$DBPORT" --dbName="$DBNAME" --dbCACert="$DBCACERT" --logLevel="$LOGLEVEL"

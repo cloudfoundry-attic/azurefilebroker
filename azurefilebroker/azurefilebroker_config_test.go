@@ -13,7 +13,7 @@ var _ = Describe("AzureConfig", func() {
 
 	Context("Given all required params", func() {
 		BeforeEach(func() {
-			azureconfig = NewAzureConfig("environment", "tenanID", "clientID", "clientSecret", "", "")
+			azureconfig = NewAzureConfig("environment", "tenanID", "clientID", "clientSecret", "", "", "")
 		})
 
 		It("should not raise an error", func() {
@@ -24,7 +24,7 @@ var _ = Describe("AzureConfig", func() {
 
 	Context("Missing environment", func() {
 		BeforeEach(func() {
-			azureconfig = NewAzureConfig("", "tenanID", "clientID", "clientSecret", "", "")
+			azureconfig = NewAzureConfig("", "tenanID", "clientID", "clientSecret", "", "", "")
 		})
 
 		It("should raise an error", func() {
@@ -35,7 +35,7 @@ var _ = Describe("AzureConfig", func() {
 
 	Context("Missing tenanID", func() {
 		BeforeEach(func() {
-			azureconfig = NewAzureConfig("environment", "", "clientID", "clientSecret", "", "")
+			azureconfig = NewAzureConfig("environment", "", "clientID", "clientSecret", "", "", "")
 		})
 
 		It("should raise an error", func() {
@@ -46,7 +46,7 @@ var _ = Describe("AzureConfig", func() {
 
 	Context("Missing clientID", func() {
 		BeforeEach(func() {
-			azureconfig = NewAzureConfig("environment", "tenanID", "", "clientSecret", "", "")
+			azureconfig = NewAzureConfig("environment", "tenanID", "", "clientSecret", "", "", "")
 		})
 
 		It("should raise an error", func() {
@@ -57,7 +57,7 @@ var _ = Describe("AzureConfig", func() {
 
 	Context("Missing clientSecret", func() {
 		BeforeEach(func() {
-			azureconfig = NewAzureConfig("environment", "tenanID", "clientID", "", "", "")
+			azureconfig = NewAzureConfig("environment", "tenanID", "clientID", "", "", "", "")
 		})
 
 		It("should raise an error", func() {
@@ -68,7 +68,7 @@ var _ = Describe("AzureConfig", func() {
 
 	Context("Missing all required params", func() {
 		BeforeEach(func() {
-			azureconfig = NewAzureConfig("", "", "", "", "", "")
+			azureconfig = NewAzureConfig("", "", "", "", "", "", "")
 		})
 
 		It("should raise an error", func() {
@@ -166,7 +166,7 @@ var _ = Describe("AzurefilebrokerCloudConfig", func() {
 	Context("Given all required params", func() {
 		Context("When environment is not AzureStack", func() {
 			BeforeEach(func() {
-				azure = NewAzureConfig("Azure", "tenanID", "clientID", "clientSecret", "", "")
+				azure = NewAzureConfig("Azure", "tenanID", "clientID", "clientSecret", "", "", "")
 				azureStack = NewAzureStackConfig("", "", "", "")
 			})
 
@@ -178,7 +178,7 @@ var _ = Describe("AzurefilebrokerCloudConfig", func() {
 
 		Context("When environment is AzureStack", func() {
 			BeforeEach(func() {
-				azure = NewAzureConfig("AzureStack", "tenanID", "clientID", "clientSecret", "", "")
+				azure = NewAzureConfig("AzureStack", "tenanID", "clientID", "clientSecret", "", "", "")
 				azureStack = NewAzureStackConfig("azureStackDomain", "azureStackAuthentication", "azureStackResource", "azureStackEndpointPrefix")
 			})
 
@@ -191,7 +191,7 @@ var _ = Describe("AzurefilebrokerCloudConfig", func() {
 
 	Context("Missing params for AzureStack", func() {
 		BeforeEach(func() {
-			azure = NewAzureConfig("AzureStack", "tenanID", "clientID", "clientSecret", "", "")
+			azure = NewAzureConfig("AzureStack", "tenanID", "clientID", "clientSecret", "", "", "")
 			azureStack = NewAzureStackConfig("", "", "", "")
 		})
 

@@ -143,7 +143,7 @@ func NewStorageAccount(logger lager.Logger, configuration Configuration) (*Stora
 		ResourceGroupName:       configuration.ResourceGroupName,
 		StorageAccountName:      configuration.StorageAccountName,
 		SkuName:                 storage.StandardRAGRS,
-		Location:                locationWestUS,
+		Location:                configuration.Location,
 		UseHTTPS:                true,
 		IsCreatedStorageAccount: false,
 		SDKClient:               nil,
