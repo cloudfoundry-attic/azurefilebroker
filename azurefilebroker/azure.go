@@ -59,20 +59,6 @@ type Environment struct {
 	APIVersions                APIVersions
 }
 
-// OperationStatus  The status of a storage account
-type OperationStatus string
-
-const (
-	// StatuOperationStatusNonesPending  When do not create a storage account
-	OperationStatusNone OperationStatus = "None"
-	// OperationStatusPending  When receiving provision request to create a storage account
-	OperationStatusPending OperationStatus = "Pending"
-	// OperationStatusInProgress  When sending provision response to create a storage account
-	OperationStatusInProgress OperationStatus = "InProgress"
-	// OperationStatusSuccess  When a storage account exists or is created successfully
-	OperationStatusSuccess OperationStatus = "Success"
-)
-
 var Environments = map[string]Environment{
 	AzureCloud: Environment{
 		ResourceManagerEndpointURL: "https://management.azure.com/",
@@ -146,10 +132,8 @@ type StorageAccount struct {
 	IsCreatedStorageAccount bool
 	AccessKey               string
 	BaseURL                 string
-	OperationStatus         OperationStatus
 	OperationURL            string
 	SDKClient               AzureStorageAccountSDKClient
-	RESTClient              AzureStorageAccountRESTClient
 }
 
 func NewStorageAccount(logger lager.Logger, configuration Configuration) (*StorageAccount, error) {
@@ -250,7 +234,7 @@ func (c *AzureStorageSDKClient) Exists() (bool, error) {
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if err := c.getBaseURL(); err != nil {
+	if _, err := c.getStorageAccountProperties(); err != nil {
 		if strings.Contains(err.Error(), resourceNotFound) {
 			err = nil
 		}
@@ -264,17 +248,21 @@ func (c *AzureStorageSDKClient) getBaseURL() error {
 	logger.Info("start")
 	defer logger.Info("end")
 
-	if c.StorageAccount.BaseURL == "" {
-		result, err := c.getStorageAccountProperties()
-		if err != nil {
-			logger.Error("get-storage-c-properties", err)
-			return err
-		}
-		c.StorageAccount.BaseURL, err = parseBaseURL(*result.AccountProperties.PrimaryEndpoints.File)
-		if err != nil {
-			logger.Error("parse-base-url", err)
-			return err
-		}
+	result, err := c.getStorageAccountProperties()
+	if err != nil {
+		logger.Error("get-storage-account-properties", err)
+		return err
+	}
+	properties := *result.AccountProperties
+	if properties.ProvisioningState != storage.Succeeded {
+		err := fmt.Errorf("The storage account %q is still in creating", c.StorageAccount.StorageAccountName)
+		logger.Error("get-storage-account-properties", err)
+		return err
+	}
+	c.StorageAccount.BaseURL, err = parseBaseURL(*(properties.PrimaryEndpoints).File)
+	if err != nil {
+		logger.Error("parse-base-url", err)
+		return err
 	}
 
 	return nil
@@ -591,7 +579,7 @@ func (c *AzureRESTClient) CheckCompletion(asyncURL string) (bool, error) {
 		return false, err
 	}
 	headers["x-ms-version"] = queries["api-version"]
-	resty.SetDebug(true)
+
 	resp, err := resty.R().
 		SetHeaders(headers).
 		SetQueryParams(queries).

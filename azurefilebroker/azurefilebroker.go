@@ -118,18 +118,17 @@ func getFileShareID(instanceID, fileShareName string) string {
 }
 
 type ServiceInstance struct {
-	ServiceID               string          `json:"service_id"`
-	PlanID                  string          `json:"plan_id"`
-	OrganizationGUID        string          `json:"organization_guid"`
-	SpaceGUID               string          `json:"space_guid"`
-	SubscriptionID          string          `json:"subscription_id"`
-	ResourceGroupName       string          `json:"resource_group_name"`
-	StorageAccountName      string          `json:"storage_account_name"`
-	UseHTTPS                string          `json:"use_https"`
-	IsCreatedStorageAccount bool            `json:"is_created_storage_account"`
-	OperationStatus         OperationStatus `json:"operation_status"`
-	OperationURL            string          `json:"operation_url"`
-	DatabseVersion          string          `json:"database_version"`
+	ServiceID               string `json:"service_id"`
+	PlanID                  string `json:"plan_id"`
+	OrganizationGUID        string `json:"organization_guid"`
+	SpaceGUID               string `json:"space_guid"`
+	SubscriptionID          string `json:"subscription_id"`
+	ResourceGroupName       string `json:"resource_group_name"`
+	StorageAccountName      string `json:"storage_account_name"`
+	UseHTTPS                string `json:"use_https"`
+	IsCreatedStorageAccount bool   `json:"is_created_storage_account"`
+	OperationURL            string `json:"operation_url"`
+	DatabseVersion          string `json:"database_version"`
 }
 
 type lock interface {
@@ -231,14 +230,6 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 		return brokerapi.ProvisionedServiceSpec{}, err
 	}
 
-	operationStatus := OperationStatusNone
-	if storageAccount.IsCreatedStorageAccount {
-		if storageAccount.OperationURL == "" {
-			operationStatus = OperationStatusSuccess
-		} else {
-			operationStatus = OperationStatusPending
-		}
-	}
 	serviceInstance := ServiceInstance{
 		details.ServiceID,
 		details.PlanID,
@@ -249,7 +240,6 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 		storageAccount.StorageAccountName,
 		strconv.FormatBool(storageAccount.UseHTTPS),
 		storageAccount.IsCreatedStorageAccount,
-		operationStatus,
 		storageAccount.OperationURL,
 		databseVersion,
 	}
@@ -262,7 +252,8 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 
 	logger.Debug("service-instance-created", lager.Data{"serviceInstance": serviceInstance})
 
-	return brokerapi.ProvisionedServiceSpec{IsAsync: operationStatus == OperationStatusPending, OperationData: storageAccount.OperationURL}, nil
+	isAsync := storageAccount.IsCreatedStorageAccount && storageAccount.OperationURL != ""
+	return brokerapi.ProvisionedServiceSpec{IsAsync: isAsync, OperationData: storageAccount.OperationURL}, nil
 }
 
 func (b *Broker) getStorageAccount(logger lager.Logger, configuration Configuration) (*StorageAccount, error) {
@@ -282,14 +273,18 @@ func (b *Broker) getStorageAccount(logger lager.Logger, configuration Configurat
 	if err != nil {
 		return nil, err
 	}
-	storageAccount.RESTClient, err = NewAzureStorageAccountRESTClient(
-		logger,
-		&b.config.cloud,
-		storageAccount,
-	)
+
+	// Consider multiple users may send provision requests with a same storage account name
+	// Multiple broker instances may check whether the storage account exists or not at the same time
+	// They will send same creation requests to Azure if all of above checks return false
+	// All of them will consider they are the owner of the new created storage account
+	// We use a global lock as a solution for above race
+	err = b.store.GetLockForUpdate(storageAccount.StorageAccountName, lockTimeoutInSeconds)
 	if err != nil {
+		logger.Error("get-lock-for-check-storage-account", err)
 		return nil, err
 	}
+	defer b.store.ReleaseLockForUpdate(storageAccount.StorageAccountName)
 
 	if exist, err := storageAccount.SDKClient.Exists(); err != nil {
 		return nil, fmt.Errorf("Failed to check whether storage account exists: %v", err)
@@ -302,7 +297,16 @@ func (b *Broker) getStorageAccount(logger lager.Logger, configuration Configurat
 		return nil, fmt.Errorf("The storage account %q does not exist under the resource group %q in the subscription %q and the administrator does not allow to create it automatically", storageAccount.StorageAccountName, storageAccount.ResourceGroupName, storageAccount.SubscriptionID)
 	}
 
-	storageAccount.OperationURL, err = storageAccount.RESTClient.CreateStorageAccount()
+	restClient, err := NewAzureStorageAccountRESTClient(
+		logger,
+		&b.config.cloud,
+		storageAccount,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	storageAccount.OperationURL, err = restClient.CreateStorageAccount()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create the storage account %q under the resource group %q in the subscription %q: %v", storageAccount.StorageAccountName, storageAccount.ResourceGroupName, storageAccount.SubscriptionID, err)
 	}
@@ -707,11 +711,6 @@ func (b *Broker) LastOperation(_ context.Context, instanceID string, operationDa
 		logger.Error("retrieve-service-instance", err)
 		return brokerapi.LastOperation{}, err
 	}
-	if serviceInstance.OperationStatus != OperationStatusPending && serviceInstance.OperationStatus != OperationStatusInProgress {
-		err := fmt.Errorf("Invalid service instance status: %s", serviceInstance.OperationStatus)
-		logger.Error("check-service-instance-status", err)
-		return brokerapi.LastOperation{}, err
-	}
 	storageAccount, err := NewStorageAccount(
 		logger,
 		Configuration{
@@ -723,7 +722,7 @@ func (b *Broker) LastOperation(_ context.Context, instanceID string, operationDa
 	if err != nil {
 		return brokerapi.LastOperation{}, err
 	}
-	storageAccount.RESTClient, err = NewAzureStorageAccountRESTClient(
+	restClient, err := NewAzureStorageAccountRESTClient(
 		logger,
 		&b.config.cloud,
 		storageAccount,
@@ -731,7 +730,7 @@ func (b *Broker) LastOperation(_ context.Context, instanceID string, operationDa
 	if err != nil {
 		return brokerapi.LastOperation{}, err
 	}
-	ret, err := storageAccount.RESTClient.CheckCompletion(operationData)
+	ret, err := restClient.CheckCompletion(operationData)
 	state := brokerapi.InProgress
 	description := ""
 	if err != nil {
