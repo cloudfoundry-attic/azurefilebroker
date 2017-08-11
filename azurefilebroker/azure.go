@@ -127,6 +127,7 @@ type StorageAccount struct {
 	ResourceGroupName       string
 	StorageAccountName      string
 	UseHTTPS                bool
+	EnableEncryption        bool
 	SkuName                 storage.SkuName
 	Location                string
 	IsCreatedStorageAccount bool
@@ -144,7 +145,8 @@ func NewStorageAccount(logger lager.Logger, configuration Configuration) (*Stora
 		StorageAccountName:      configuration.StorageAccountName,
 		SkuName:                 storage.StandardRAGRS,
 		Location:                configuration.Location,
-		UseHTTPS:                true,
+		UseHTTPS:                false,
+		EnableEncryption:        true,
 		IsCreatedStorageAccount: false,
 		SDKClient:               nil,
 	}
@@ -152,6 +154,12 @@ func NewStorageAccount(logger lager.Logger, configuration Configuration) (*Stora
 	if configuration.UseHTTPS != "" {
 		if ret, err := strconv.ParseBool(configuration.UseHTTPS); err == nil {
 			storageAccount.UseHTTPS = ret
+		}
+	}
+
+	if configuration.EnableEncryption != "" {
+		if ret, err := strconv.ParseBool(configuration.EnableEncryption); err == nil {
+			storageAccount.EnableEncryption = ret
 		}
 	}
 	if configuration.SkuName != "" {
@@ -543,6 +551,17 @@ func (c *AzureRESTClient) CreateStorageAccount() (string, error) {
 		"name":     c.storageAccount.StorageAccountName,
 		"properties": map[string]interface{}{
 			"supportsHttpsTrafficOnly": c.storageAccount.UseHTTPS,
+			"encryption": map[string]interface{}{
+				"services": map[string]interface{}{
+					"blob": map[string]interface{}{
+						"enabled": c.storageAccount.EnableEncryption,
+					},
+					"file": map[string]interface{}{
+						"enabled": c.storageAccount.EnableEncryption,
+					},
+				},
+				"keySource": restAPIProviderStorage,
+			},
 		},
 		"sku": map[string]interface{}{
 			"name": string(c.storageAccount.SkuName),
@@ -569,7 +588,7 @@ func (c *AzureRESTClient) CreateStorageAccount() (string, error) {
 	} else if statusCode == http.StatusAccepted {
 		return resp.Header().Get("Location"), nil
 	}
-	return "", fmt.Errorf("Error Code: %d", statusCode)
+	return "", fmt.Errorf("Error Code: %d, %v", statusCode, resp)
 }
 
 // CheckCompletion Check whether an asynchronous operation finishes or not
@@ -593,7 +612,7 @@ func (c *AzureRESTClient) CheckCompletion(asyncURL string) (bool, error) {
 	}
 	apiResponse := map[string]interface{}{}
 	if err := json.Unmarshal(resp.Body(), &apiResponse); err != nil {
-		return false, fmt.Errorf("StatusCode: %d - %s\n\t%s", statusCode, resp.Body(), err)
+		return false, fmt.Errorf("StatusCode: %d - %v\n\t%s", statusCode, resp, err)
 	}
 	return false, fmt.Errorf("StatusCode: %d - %s", statusCode, apiResponse)
 }

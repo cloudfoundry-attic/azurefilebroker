@@ -136,6 +136,7 @@ type lock interface {
 	Unlock()
 }
 
+// TBD: Remove os if os is never used
 type Broker struct {
 	logger lager.Logger
 	os     osshim.Os
@@ -197,6 +198,7 @@ func (b *Broker) Services(_ context.Context) []brokerapi.Service {
 // Provision Create a service instance which is mapped to a storage account
 // TBD: Now this broker does not support to create storage account if it does not exist
 // Now ControlConfig.AllowCreateStorageAccount is always set to false
+// UseHTTPS must be set to false. Otherwise, the mount in Linux will fail. https://docs.microsoft.com/en-us/azure/storage/storage-security-guide
 func (b *Broker) Provision(context context.Context, instanceID string, details brokerapi.ProvisionDetails, asyncAllowed bool) (_ brokerapi.ProvisionedServiceSpec, e error) {
 	logger := b.logger.Session("provision").WithData(lager.Data{"instanceID": instanceID, "details": details, "asyncAllowed": asyncAllowed})
 	logger.Info("start")
