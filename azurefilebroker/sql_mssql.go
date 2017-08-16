@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net/url"
 
-	"code.cloudfoundry.org/goshims/ioutilshim"
-	"code.cloudfoundry.org/goshims/osshim"
 	"code.cloudfoundry.org/goshims/sqlshim"
 	"code.cloudfoundry.org/lager"
 	_ "github.com/denisenkom/go-mssqldb"
@@ -13,8 +11,6 @@ import (
 
 type mssqlVariant struct {
 	sql                sqlshim.Sql
-	ioutil             ioutilshim.Ioutil
-	os                 osshim.Os
 	dbConnectionString string
 	caCert             string
 	dbName             string
@@ -22,10 +18,10 @@ type mssqlVariant struct {
 }
 
 func NewMSSqlVariant(logger lager.Logger, username, password, host, port, dbName, caCert string) SqlVariant {
-	return NewMSSqlVariantWithShims(logger, username, password, host, port, dbName, caCert, &sqlshim.SqlShim{}, &ioutilshim.IoutilShim{}, &osshim.OsShim{})
+	return NewMSSqlVariantWithShims(logger, username, password, host, port, dbName, caCert, &sqlshim.SqlShim{})
 }
 
-func NewMSSqlVariantWithShims(logger lager.Logger, username, password, host, port, dbName, caCert string, sql sqlshim.Sql, ioutil ioutilshim.Ioutil, os osshim.Os) SqlVariant {
+func NewMSSqlVariantWithShims(logger lager.Logger, username, password, host, port, dbName, caCert string, sql sqlshim.Sql) SqlVariant {
 	query := url.Values{}
 	query.Add("database", dbName)
 
@@ -38,8 +34,6 @@ func NewMSSqlVariantWithShims(logger lager.Logger, username, password, host, por
 
 	return &mssqlVariant{
 		sql:                sql,
-		os:                 os,
-		ioutil:             ioutil,
 		dbConnectionString: u.String(),
 		caCert:             caCert,
 		dbName:             dbName,

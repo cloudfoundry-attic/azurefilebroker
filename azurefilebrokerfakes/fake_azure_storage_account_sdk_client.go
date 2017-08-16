@@ -30,6 +30,15 @@ type FakeAzureStorageAccountSDKClient struct {
 		result1 string
 		result2 error
 	}
+	DeleteStorageAccountStub        func() error
+	deleteStorageAccountMutex       sync.RWMutex
+	deleteStorageAccountArgsForCall []struct{}
+	deleteStorageAccountReturns     struct {
+		result1 error
+	}
+	deleteStorageAccountReturnsOnCall map[int]struct {
+		result1 error
+	}
 	HasFileShareStub        func(fileShareName string) (bool, error)
 	hasFileShareMutex       sync.RWMutex
 	hasFileShareArgsForCall []struct {
@@ -166,6 +175,46 @@ func (fake *FakeAzureStorageAccountSDKClient) GetAccessKeyReturnsOnCall(i int, r
 		result1 string
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeAzureStorageAccountSDKClient) DeleteStorageAccount() error {
+	fake.deleteStorageAccountMutex.Lock()
+	ret, specificReturn := fake.deleteStorageAccountReturnsOnCall[len(fake.deleteStorageAccountArgsForCall)]
+	fake.deleteStorageAccountArgsForCall = append(fake.deleteStorageAccountArgsForCall, struct{}{})
+	fake.recordInvocation("DeleteStorageAccount", []interface{}{})
+	fake.deleteStorageAccountMutex.Unlock()
+	if fake.DeleteStorageAccountStub != nil {
+		return fake.DeleteStorageAccountStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fake.deleteStorageAccountReturns.result1
+}
+
+func (fake *FakeAzureStorageAccountSDKClient) DeleteStorageAccountCallCount() int {
+	fake.deleteStorageAccountMutex.RLock()
+	defer fake.deleteStorageAccountMutex.RUnlock()
+	return len(fake.deleteStorageAccountArgsForCall)
+}
+
+func (fake *FakeAzureStorageAccountSDKClient) DeleteStorageAccountReturns(result1 error) {
+	fake.DeleteStorageAccountStub = nil
+	fake.deleteStorageAccountReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeAzureStorageAccountSDKClient) DeleteStorageAccountReturnsOnCall(i int, result1 error) {
+	fake.DeleteStorageAccountStub = nil
+	if fake.deleteStorageAccountReturnsOnCall == nil {
+		fake.deleteStorageAccountReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.deleteStorageAccountReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeAzureStorageAccountSDKClient) HasFileShare(fileShareName string) (bool, error) {
@@ -373,6 +422,8 @@ func (fake *FakeAzureStorageAccountSDKClient) Invocations() map[string][][]inter
 	defer fake.existsMutex.RUnlock()
 	fake.getAccessKeyMutex.RLock()
 	defer fake.getAccessKeyMutex.RUnlock()
+	fake.deleteStorageAccountMutex.RLock()
+	defer fake.deleteStorageAccountMutex.RUnlock()
 	fake.hasFileShareMutex.RLock()
 	defer fake.hasFileShareMutex.RUnlock()
 	fake.createFileShareMutex.RLock()

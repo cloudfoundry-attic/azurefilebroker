@@ -34,7 +34,6 @@ type Store interface {
 type SqlStore struct {
 	StoreType string
 	Database  SqlConnection
-	logger    lager.Logger
 }
 
 func NewStore(logger lager.Logger, dbDriver, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert string) Store {
@@ -43,26 +42,34 @@ func NewStore(logger lager.Logger, dbDriver, dbUsername, dbPassword, dbHostname,
 	logger = logger.Session("sql-store")
 
 	switch dbDriver {
-	case "mysql":
-		storeType = "mysql"
-		toDatabase = NewMySqlVariant(logger, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert)
 	case "mssql":
 		storeType = "mssql"
 		toDatabase = NewMSSqlVariant(logger, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert)
+	case "mysql":
+		storeType = "mysql"
+		toDatabase = NewMySqlVariant(logger, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert)
 	default:
 		logger.Fatal("db-driver-unrecognized", fmt.Errorf("Unrecognized Driver: %s", dbDriver))
 	}
+	store, err := NewStoreWithVariant(logger, storeType, toDatabase)
+	if err != nil {
+		logger.Fatal("new-store-with-variant", err)
+	}
+	return store
+}
 
+func NewStoreWithVariant(logger lager.Logger, storeType string, toDatabase SqlVariant) (Store, error) {
 	database := NewSqlConnection(toDatabase)
-	if err := initialize(logger, database); err != nil {
-		logger.Fatal("sql-store-initialize-database", err)
+	err := initialize(logger, database)
+	if err != nil {
+		logger.Error("sql-failed-to-initialize-database", err)
+		return nil, err
 	}
 
 	return &SqlStore{
 		StoreType: storeType,
 		Database:  database,
-		logger:    logger,
-	}
+	}, nil
 }
 
 func initialize(logger lager.Logger, db SqlConnection) error {
@@ -223,49 +230,33 @@ func (s *SqlStore) UpdateFileShare(id string, share FileShare) error {
 	}
 	ret, err := result.RowsAffected()
 	if err != nil {
-		s.logger.Error("parse-result-for-update-file-share", err)
-		return err
+		return fmt.Errorf("Cannot parse RowsAffected when updating the file share: %v", err)
 	}
 	if ret == int64(0) {
-		err = brokerapi.ErrBindingDoesNotExist
-		s.logger.Error("update-file-share", err)
-		return err
+		return fmt.Errorf("Cannot update the file share in the database")
 	}
 	return nil
 }
 
 func (s *SqlStore) GetLockForUpdate(lockName string, seconds int) error {
-	logger := s.logger.WithData(lager.Data{"lockName": lockName, "seconds": seconds})
 	query := s.Database.GetAppLockSQL()
-	logger.Info("get-lock-for-update", lager.Data{"query": query})
-
 	var ret int
 	err := s.Database.QueryRow(query, lockName, seconds).Scan(&ret)
 	if err != nil {
-		err = fmt.Errorf("Cannot get the lock %q for update in %d seconds. Error: %v", lockName, seconds, err)
-		logger.Error("get-lock-fail", err)
-		return err
+		return fmt.Errorf("Cannot get the lock %q for update in %d seconds. Error: %v", lockName, seconds, err)
 	}
 	if ret != 1 {
-		err = fmt.Errorf("Cannot get the lock %q for update in %d seconds because the lock has been obtained by some process", lockName, seconds)
-		logger.Error("get-lock-fail", err)
-		return err
+		return fmt.Errorf("Cannot get the lock %q for update in %d seconds because the lock has been obtained by some process", lockName, seconds)
 	}
-	logger.Info("get-lock-success")
 	return nil
 }
 
 func (s *SqlStore) ReleaseLockForUpdate(lockName string) error {
-	logger := s.logger.WithData(lager.Data{"lockName": lockName})
 	query := s.Database.GetReleaseAppLockSQL()
-	logger.Info("release-lock-for-update", lager.Data{"query": query})
 
 	_, err := s.Database.Exec(query, lockName)
 	if err != nil {
-		err = fmt.Errorf("Cannot release the lock %q for update. Error: %v", lockName, err)
-		logger.Error("get-lock-fail", err)
-		return err
+		return fmt.Errorf("Cannot release the lock %q for update. Error: %v", lockName, err)
 	}
-	logger.Info("release-lock-success")
 	return nil
 }
