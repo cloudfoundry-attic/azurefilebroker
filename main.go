@@ -30,7 +30,7 @@ var atAddress = flag.String(
 var serviceName = flag.String(
 	"serviceName",
 	"azuresmbvolume",
-	"name of the service to register with cloud controller",
+	"Name of the service to register with cloud controller",
 )
 
 var serviceID = flag.String(
@@ -39,147 +39,147 @@ var serviceID = flag.String(
 	"ID of the service to register with cloud controller",
 )
 
-var cfServiceName = flag.String(
-	"cfServiceName",
-	"",
-	"(optional) For CF pushed apps, the service name in VCAP_SERVICES where we should find database credentials. dbDriver must be defined if this option is set, but all other db parameters will be extracted from the service binding.",
-)
-
 // DB
 var dbDriver = flag.String(
 	"dbDriver",
 	"",
-	"[REQUIRED] - database driver name when using SQL to store broker state",
+	"[REQUIRED] - Database driver name when using SQL to store broker state",
+)
+
+var cfServiceName = flag.String(
+	"cfServiceName",
+	"",
+	"(optional) - For CF pushed apps, the service name in VCAP_SERVICES where we should find database credentials. If this option is set, all db parameters will be extracted from the service binding except dbCACert",
 )
 
 var dbHostname = flag.String(
 	"dbHostname",
 	"",
-	"[REQUIRED] - database hostname when using SQL to store broker state",
+	"(optional) - Database hostname when using SQL to store broker state",
 )
 
 var dbPort = flag.String(
 	"dbPort",
 	"",
-	"[REQUIRED] - database port when using SQL to store broker state",
+	"(optional) - Database port when using SQL to store broker state",
 )
 
 var dbName = flag.String(
 	"dbName",
 	"",
-	"[REQUIRED] - database name when using SQL to store broker state",
+	"(optional) - Database name when using SQL to store broker state",
 )
 
-// TBD: Enable mssql tls gracefully
 var dbCACert = flag.String(
 	"dbCACert",
 	"",
-	"(optional) CA Cert to verify SSL connection. For Azure SQL service, you need to specify the hostNameInCertificate to enable TLS encryption. For AzureCloud, it is *.database.windows.net",
+	"[REQUIRED] - CA Cert to verify SSL connection. For Azure SQL service, you need to specify the hostNameInCertificate to enable TLS encryption. For AzureCloud, it is *.database.windows.net",
 )
 
 // Bind
 var allowedOptions = flag.String(
 	"allowedOptions",
 	"share,uid,gid,file_mode,dir_mode,readonly,vers,mount",
-	"A comma separated list of parameters allowed to be set in during bind operations.",
+	"A comma separated list of parameters allowed to be set in during bind operations",
 )
 
 var defaultOptions = flag.String(
 	"defaultOptions",
 	"vers:3.0",
-	"A comma separated list of defaults specified as param:value. If a parameter has a default value and is not in the allowed list, this default value becomes a fixed value that cannot be overridden.",
+	"A comma separated list of defaults specified as param:value. If a parameter has a default value and is not in the allowed list, this default value becomes a fixed value that cannot be overridden",
 )
 
 // Azure
 var environment = flag.String(
 	"environment",
 	"AzureCloud",
-	"The environment for Azure Management Service. AzureCloud, AzureChinaCloud, AzureUSGovernment, AzureGermanCloud or AzureStack.",
+	"The environment for Azure Management Service. AzureCloud, AzureChinaCloud, AzureUSGovernment or AzureGermanCloud",
 )
 
 var tenantID = flag.String(
 	"tenantID",
 	"",
-	"[REQUIRED] - The tenant id for your service principal.",
+	"[REQUIRED] - The tenant id for your service principal",
 )
 
 var clientID = flag.String(
 	"clientID",
 	"",
-	"[REQUIRED] - The client id for your service principal.",
+	"[REQUIRED] - The client id for your service principal",
 )
 
 var clientSecret = flag.String(
 	"clientSecret",
 	"",
-	"[REQUIRED] - The client secret for your service principal.",
+	"[REQUIRED] - The client secret for your service principal",
 )
 
 var defaultSubscriptionID = flag.String(
 	"defaultSubscriptionID",
 	"",
-	"(optional) - The default Azure Subscription id to use for storage accounts.",
+	"(optional) - The default Azure Subscription id to use for storage accounts",
 )
 
 var defaultResourceGroupName = flag.String(
 	"defaultResourceGroupName",
 	"",
-	"(optional) - The default resource group name to use for storage accounts.",
+	"(optional) - The default resource group name to use for storage accounts",
 )
 
 var defaultLocation = flag.String(
 	"defaultLocation",
 	"",
-	"(optional) - The default location to use for creating storage accounts.",
+	"(optional) - The default location to use for creating storage accounts",
 )
 
 var allowCreateStorageAccount = flag.Bool(
 	"allowCreateStorageAccount",
 	true,
-	"(optional) Allow Broker to create storage accounts.",
+	"Allow Broker to create storage accounts",
 )
 
 var allowCreateFileShare = flag.Bool(
 	"allowCreateFileShare",
 	true,
-	"(optional) Allow Broker to create file shares.",
+	"Allow Broker to create file shares",
 )
 
 var allowDeleteStorageAccount = flag.Bool(
 	"allowDeleteStorageAccount",
 	false,
-	"(optional) Allow Broker to delete storage accounts which are created by Broker.",
+	"Allow Broker to delete storage accounts which are created by Broker",
 )
 
 var allowDeleteFileShare = flag.Bool(
 	"allowDeleteFileShare",
 	false,
-	"(optional) Allow Broker to delete file shares which are created by Broker.",
+	"Allow Broker to delete file shares which are created by Broker",
 )
 
 // AzureStack
+// TBD: AzureStack DOES NOT support file service now. Keep these for future.
 var azureStackDomain = flag.String(
 	"azureStackDomain",
 	"",
-	"Required when environment is AzureStack. The domain for your AzureStack deployment.",
+	"Required when environment is AzureStack. The domain for your AzureStack deployment",
 )
 
 var azureStackAuthentication = flag.String(
 	"azureStackAuthentication",
 	"",
-	"Required when environment is AzureStack. The authentication type for your AzureStack deployment. AzureAD, AzureStackAD or AzureStack.",
+	"Required when environment is AzureStack. The authentication type for your AzureStack deployment. AzureAD, AzureStackAD or AzureStack",
 )
 
 var azureStackResource = flag.String(
 	"azureStackResource",
 	"",
-	"Required when environment is AzureStack. The token resource for your AzureStack deployment.",
+	"Required when environment is AzureStack. The token resource for your AzureStack deployment",
 )
 
 var azureStackEndpointPrefix = flag.String(
 	"azureStackEndpointPrefix",
 	"",
-	"Required when environment is AzureStack. The endpoint prefix for your AzureStack deployment.",
+	"Required when environment is AzureStack. The endpoint prefix for your AzureStack deployment",
 )
 
 var (

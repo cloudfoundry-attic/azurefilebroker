@@ -119,6 +119,3 @@ var _ = Describe("BindOptions", func() {
 		})
 	})
 })
-
-var _ = Describe("Broker", func() {
-})
