@@ -15,7 +15,7 @@
     DEFAULTLOCATION: replace-me          # The default location to use for creating storage accounts.
     ALLOWCREATESTORAGEACCOUNT: true      # Allow Broker to create storage accounts.
     ALLOWCREATEFILESHARE: true           # Allow Broker to create file shares.
-    ALLOWCREATESTORAGEACCOUNT: false     # Allow Broker to delete storage accounts which are created by Broker.
+    ALLOWDELETESTORAGEACCOUNT: false     # Allow Broker to delete storage accounts which are created by Broker.
     ALLOWDELETEFILESHARE: false          # Allow Broker to delete file shares which are created by Broker.
 
     # DB

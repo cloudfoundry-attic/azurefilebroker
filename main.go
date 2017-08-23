@@ -295,10 +295,10 @@ func createServer(logger lager.Logger) ifrit.Runner {
 	})
 	controlConfig := azurefilebroker.NewControlConfig(*allowCreateStorageAccount, *allowCreateFileShare, *allowDeleteStorageAccount, *allowDeleteFileShare)
 	logger.Info("createServer.cloud.controlConfig", lager.Data{
-		"AllowCreateFileShare":      controlConfig.AllowCreateFileShare,
 		"AllowCreateStorageAccount": controlConfig.AllowCreateStorageAccount,
-		"AllowDeleteFileShare":      controlConfig.AllowDeleteFileShare,
+		"AllowCreateFileShare":      controlConfig.AllowCreateFileShare,
 		"AllowDeleteStorageAccount": controlConfig.AllowDeleteStorageAccount,
+		"AllowDeleteFileShare":      controlConfig.AllowDeleteFileShare,
 	})
 	azureStackConfig := azurefilebroker.NewAzureStackConfig(*azureStackDomain, *azureStackAuthentication, *azureStackResource, *azureStackEndpointPrefix)
 	logger.Info("createServer.cloud.azureStackConfig", lager.Data{

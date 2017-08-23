@@ -23,7 +23,6 @@ const (
 	creator                     = "creator"
 	resourceNotFound            = "StatusCode=404"
 	fileRequestTimeoutInSeconds = 60
-	locationWestUS              = "westus"
 )
 
 const (
@@ -154,12 +153,16 @@ func NewStorageAccount(logger lager.Logger, configuration Configuration) (*Stora
 	if configuration.UseHTTPS != "" {
 		if ret, err := strconv.ParseBool(configuration.UseHTTPS); err == nil {
 			storageAccount.UseHTTPS = ret
+		} else {
+			return nil, fmt.Errorf("Failed in parsing UseHTTPS. It must be true or false. Error: %v", err)
 		}
 	}
 
 	if configuration.EnableEncryption != "" {
 		if ret, err := strconv.ParseBool(configuration.EnableEncryption); err == nil {
 			storageAccount.EnableEncryption = ret
+		} else {
+			return nil, fmt.Errorf("Failed in parsing EnableEncryption. It must be true or false. Error: %v", err)
 		}
 	}
 	if configuration.SkuName != "" {
