@@ -30,7 +30,7 @@ To start azurefilebroker, all configurations must start with `--`. Please refere
 
 - Configurations for database used by Broker
     - dbDriver: [REQUIRED] - Database driver name to use SQL to store broker state. Allowed values: `mssql` or `mysql`.
-    - dbCACert: [REQUIRED] - CA Cert to verify SSL connection. For Azure SQL service, you need to specify the hostNameInCertificate to enable TLS encryption. For AzureCloud, it is `*.database.windows.net`.
+    - dbCACert: [REQUIRED] - For Azure SQL service, you need to specify the hostNameInCertificate to enable TLS encryption. For AzureCloud, it is `*.database.windows.net`. For mySQL, you need to specify the content of CA Cert to verify SSL connection.
     - cfServiceName: (optional) - For CF pushed apps, the service name in VCAP_SERVICES where we should find database credentials. If this option is set, all db parameters will be extracted from the service binding except `dbCACert`. It must be set to the service name for the database service as seen in `cf marketplace` which you want to bind to this broker. In the `manifest.yml`, alias is `DBSERVICENAME` to keep same format as nfsbroker.
     - dbHostname: (optional) - Database hostname when using SQL to store broker state.
     - dbPort: (optional) - Database port when using SQL to store broker state.

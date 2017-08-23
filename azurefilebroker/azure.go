@@ -455,7 +455,6 @@ func NewAzureStorageAccountRESTClient(logger lager.Logger, cloudConfig *CloudCon
 
 func (c *AzureRESTClient) refreshToken(force bool) error {
 	if c.token.AccessToken == "" || time.Until(c.token.ExpiresOn) <= 0 || force {
-		fmt.Println("get token")
 		headers := map[string]string{
 			"Content-Type": contentTypeWWW,
 			"User-Agent":   userAgent,

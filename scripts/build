@@ -1,0 +1,20 @@
+#!/bin/bash
+
+if [ "$1" == "--help" ]; then
+  echo "USAGE: $0"
+  echo "    This command takes no arguments."
+  echo ""
+  echo "This script fetches all dependencies and build this project."
+  exit 0
+fi
+
+set -x -e
+go get github.com/tools/godep
+godep get .
+go get -t .
+pushd azurefilebroker
+  go get -t .
+popd
+
+mkdir -p bin
+go build -o bin/azurefilebroker
