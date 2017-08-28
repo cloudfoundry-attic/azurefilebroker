@@ -627,7 +627,7 @@ func (b *Broker) Unbind(context context.Context, instanceID string, bindingID st
 	}
 
 	if err := b.handleUnbindShare(logger, &serviceInstance, &fileShare); err != nil {
-		return nil
+		return err
 	}
 
 	if fileShare.Count > 0 {

@@ -74,7 +74,7 @@ To start azurefilebroker, all configurations must start with `--`. Please refere
 - sku_name: Available when creating a new storage account. The sku name for the storage account. Only standard storage account supports Azure file service. Allowed values: `Standard_GRS`, `Standard_LRS` or `Standard_RAGRS`. Default value is `Standard_RAGRS`.
 - enable_encryption: Available when creating a new storage account. Indicating whether or not the service encrypts the data as it is stored. Only blob service and file service support encryption. Default value is `true`.
 
-# Prameters for bind
+# Parameters for bind
 
 - share: [REQUIRED] - The file share name in the storage account. If the file share does not exist, Broker will help you to create a new file share with the name when `allowCreateFileShare` is set to `true`. Please see share name restrictions [here](https://docs.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-shares--directories--files--and-metadata#share-names).
 - uid: Sets the uid that will own all files or directories on the mounted filesystem.

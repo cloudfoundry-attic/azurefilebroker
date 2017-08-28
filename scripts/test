@@ -23,7 +23,7 @@ export DEFAULTRESOURCEGROUPNAME=""
 export DEFAULTLOCATION=""
 export ALLOWCREATESTORAGEACCOUNT=true
 export ALLOWCREATEFILESHARE=true
-export ALLOWDELETETORAGEACCOUNT=true
+export ALLOWDELETESTORAGEACCOUNT=true
 export ALLOWDELETEFILESHARE=true
 
 export DBDRIVERNAME="mssql" # Or mysql
@@ -37,7 +37,7 @@ export DBNAME=""
 echo "-----------------------------------------------------------------"
 echo "Starting azurefilebroker"
 echo "-----------------------------------------------------------------"
-bin/azurefilebroker --logLevel="$LOGLEVEL" --listenAddr="0.0.0.0:$PORT" --serviceID="azurefilebroker" --dbDriver="$DBDRIVERNAME" --dbCACert="$DBCACERT" --cfServiceName="$DBSERVICENAME" --dbHostname="$DBHOST" --dbPort="$DBPORT" --dbName="$DBNAME" --tenantID="$TENANTID" --clientID="$CLIENTID" --clientSecret="$CLIENTSECRET" --defaultSubscriptionID="$DEFAULTSUBSCRIPTIONID" --defaultResourceGroupName="$DEFAULTRESOURCEGROUPNAME" --defaultLocation="$DEFAULTLOCATION" --allowCreateStorageAccount=$ALLOWCREATESTORAGEACCOUNT --allowCreateFileShare=$ALLOWCREATEFILESHARE --allowDeleteStorageAccount=$ALLOWDELETETORAGEACCOUNT --allowDeleteFileShare=$ALLOWDELETEFILESHARE &
+bin/azurefilebroker --logLevel="$LOGLEVEL" --listenAddr="0.0.0.0:$PORT" --serviceID="azurefilebroker" --dbDriver="$DBDRIVERNAME" --dbCACert="$DBCACERT" --cfServiceName="$DBSERVICENAME" --dbHostname="$DBHOST" --dbPort="$DBPORT" --dbName="$DBNAME" --tenantID="$TENANTID" --clientID="$CLIENTID" --clientSecret="$CLIENTSECRET" --defaultSubscriptionID="$DEFAULTSUBSCRIPTIONID" --defaultResourceGroupName="$DEFAULTRESOURCEGROUPNAME" --defaultLocation="$DEFAULTLOCATION" --allowCreateStorageAccount=$ALLOWCREATESTORAGEACCOUNT --allowCreateFileShare=$ALLOWCREATEFILESHARE --allowDeleteStorageAccount=$ALLOWDELETESTORAGEACCOUNT --allowDeleteFileShare=$ALLOWDELETEFILESHARE &
 echo "-----------------------------------------------------------------"
 echo "Started azurefilebroker"
 echo "-----------------------------------------------------------------"
