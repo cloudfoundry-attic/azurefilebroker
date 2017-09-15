@@ -19,7 +19,8 @@ var _ = Describe("MysqlVariant", func() {
 		err      error
 		database azurefilebroker.SqlVariant
 
-		cert string
+		cert                  string
+		hostNameInCertificate string
 	)
 
 	BeforeEach(func() {
@@ -29,7 +30,7 @@ var _ = Describe("MysqlVariant", func() {
 	})
 
 	JustBeforeEach(func() {
-		database = azurefilebroker.NewMySqlVariantWithSqlObject(logger, "username", "password", "host", "port", "dbName", cert, fakeSql)
+		database = azurefilebroker.NewMySqlVariantWithSqlObject(logger, "username", "password", "host", "port", "dbName", cert, hostNameInCertificate, fakeSql)
 	})
 
 	Describe(".Connect", func() {
@@ -37,9 +38,26 @@ var _ = Describe("MysqlVariant", func() {
 			_, err = database.Connect()
 		})
 
+		Context("when hostNameInCertificate specified", func() {
+			BeforeEach(func() {
+				cert = ""
+				hostNameInCertificate = "domainname"
+			})
+
+			It("open call has correctly formed connection string", func() {
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(fakeSql.OpenCallCount()).To(Equal(1))
+				dbType, connectionString := fakeSql.OpenArgsForCall(0)
+				Expect(dbType).To(Equal("mysql"))
+				Expect(connectionString).To(Equal("username:password@tcp(host:port)/dbName?allowNativePasswords=true\u0026tls=custom"))
+			})
+		})
+
 		Context("when ca cert specified", func() {
 			BeforeEach(func() {
 				cert = exampleCaCert
+				hostNameInCertificate = "domainname"
 			})
 
 			It("open call has correctly formed connection string", func() {
@@ -61,9 +79,10 @@ var _ = Describe("MysqlVariant", func() {
 			})
 		})
 
-		Context("when no ca cert specified", func() {
+		Context("when neither ca cert nor hostNameInCertificate specified", func() {
 			BeforeEach(func() {
 				cert = ""
+				hostNameInCertificate = ""
 			})
 
 			Context("when it can connect to a valid database", func() {

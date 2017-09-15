@@ -36,7 +36,7 @@ type SqlStore struct {
 	Database  SqlConnection
 }
 
-func NewStore(logger lager.Logger, dbDriver, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert string) Store {
+func NewStore(logger lager.Logger, dbDriver, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert, hostNameInCertificate string) Store {
 	var toDatabase SqlVariant
 	var storeType string
 	logger = logger.Session("sql-store")
@@ -44,10 +44,10 @@ func NewStore(logger lager.Logger, dbDriver, dbUsername, dbPassword, dbHostname,
 	switch dbDriver {
 	case "mssql":
 		storeType = "mssql"
-		toDatabase = NewMSSqlVariant(logger, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert)
+		toDatabase = NewMSSqlVariant(logger, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert, hostNameInCertificate)
 	case "mysql":
 		storeType = "mysql"
-		toDatabase = NewMySqlVariant(logger, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert)
+		toDatabase = NewMySqlVariant(logger, dbUsername, dbPassword, dbHostname, dbPort, dbName, dbCACert, hostNameInCertificate)
 	default:
 		logger.Fatal("db-driver-unrecognized", fmt.Errorf("Unrecognized Driver: %s", dbDriver))
 	}

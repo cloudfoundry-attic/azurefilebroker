@@ -13,24 +13,26 @@ import (
 )
 
 type mysqlVariant struct {
-	sql                sqlshim.Sql
-	dbConnectionString string
-	caCert             string
-	dbName             string
-	logger             lager.Logger
+	sql                   sqlshim.Sql
+	dbConnectionString    string
+	caCert                string
+	hostNameInCertificate string
+	dbName                string
+	logger                lager.Logger
 }
 
-func NewMySqlVariant(logger lager.Logger, username, password, host, port, dbName, caCert string) SqlVariant {
-	return NewMySqlVariantWithSqlObject(logger, username, password, host, port, dbName, caCert, &sqlshim.SqlShim{})
+func NewMySqlVariant(logger lager.Logger, username, password, host, port, dbName, caCert, hostNameInCertificate string) SqlVariant {
+	return NewMySqlVariantWithSqlObject(logger, username, password, host, port, dbName, caCert, hostNameInCertificate, &sqlshim.SqlShim{})
 }
 
-func NewMySqlVariantWithSqlObject(logger lager.Logger, username, password, host, port, dbName, caCert string, sql sqlshim.Sql) SqlVariant {
+func NewMySqlVariantWithSqlObject(logger lager.Logger, username, password, host, port, dbName, caCert, hostNameInCertificate string, sql sqlshim.Sql) SqlVariant {
 	return &mysqlVariant{
-		sql:                sql,
-		dbConnectionString: fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName),
-		caCert:             caCert,
-		dbName:             dbName,
-		logger:             logger,
+		sql:                   sql,
+		dbConnectionString:    fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName),
+		caCert:                caCert,
+		hostNameInCertificate: hostNameInCertificate,
+		dbName:                dbName,
+		logger:                logger,
 	}
 }
 
@@ -40,12 +42,14 @@ func (c *mysqlVariant) Connect() (sqlshim.SqlDB, error) {
 	defer logger.Info("end")
 
 	if c.caCert != "" {
+		logger.Info("secure-mysql-with-certificate")
 		cfg, err := mysql.ParseDSN(c.dbConnectionString)
 		if err != nil {
-			logger.Fatal("invalid-db-connection-string", err, lager.Data{"connection-string": c.dbConnectionString})
+			err := fmt.Errorf("Invalid connection string for %s", c.dbName)
+			logger.Error("invalid-db-connection-string", err)
+			return nil, err
 		}
 
-		logger.Debug("secure-mysql")
 		certBytes := []byte(c.caCert)
 
 		caCertPool := x509.NewCertPool()
@@ -53,12 +57,12 @@ func (c *mysqlVariant) Connect() (sqlshim.SqlDB, error) {
 			err := fmt.Errorf("Invalid CA Cert for %s", c.dbName)
 			logger.Error("failed-to-parse-sql-ca", err)
 			return nil, err
-
 		}
 
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: false,
 			RootCAs:            caCertPool,
+			ServerName:         c.hostNameInCertificate,
 		}
 		ourKey := "azurefilebroker-tls"
 		mysql.RegisterTLSConfig(ourKey, tlsConfig)
@@ -66,10 +70,22 @@ func (c *mysqlVariant) Connect() (sqlshim.SqlDB, error) {
 		cfg.Timeout = 10 * time.Minute
 		cfg.ReadTimeout = 10 * time.Minute
 		cfg.WriteTimeout = 10 * time.Minute
+
 		c.dbConnectionString = cfg.FormatDSN()
+	} else if c.hostNameInCertificate != "" {
+		logger.Info("secure-mysql-without-certificate")
+		err := mysql.RegisterTLSConfig("custom", &tls.Config{
+			ServerName: c.hostNameInCertificate,
+		})
+		if err != nil {
+			err := fmt.Errorf("Invalid hostNameInCertificate for %s", c.dbName)
+			logger.Error("failed-to-register-tlsconfig", err)
+			return nil, err
+		}
+
+		c.dbConnectionString = fmt.Sprintf("%s?allowNativePasswords=true&tls=custom", c.dbConnectionString)
 	}
 
-	logger.Info("db-string", lager.Data{"value": c.dbConnectionString})
 	sqlDB, err := c.sql.Open("mysql", c.dbConnectionString)
 	return sqlDB, err
 }

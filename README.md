@@ -14,7 +14,16 @@ For details on how to use this broker, please refer to the [smb-volume-release](
     GOOS=linux GOARCH=amd64 go build -o bin/azurefilebroker
     ```
 
+# Test
+
+You may need to install `curl` and `jq` to run test. Before running test, you need to fill parameters in `./script/test` with yours.
+
+    ```bash
+    ./script/test
+    ```
+
 # Configurations of azurefilebroker
+
 To start azurefilebroker, all configurations must start with `--`. Please reference [Procfile](./Procfile).
 
 - Environment variables for Broker
@@ -25,13 +34,18 @@ To start azurefilebroker, all configurations must start with `--`. Please refere
 
 - Configurations for Broker
     - listenAddr: host:port to serve service broker API. Default value is `0.0.0.0:9000`. You must use the environment variable `PORT` if you deploy broker as a Cloud Foundry application. Please reference [here](https://docs.run.pivotal.io/devguide/deploy-apps/environment-variable.html#PORT).
-    - serviceName: name of the service to register with cloud controller. Default value is `azuresmbvolume`.
+    - serviceName: Name of the service to register with cloud controller. Default value is `azuresmbvolume`.
     - serviceID: ID of the service to register with cloud controller. Default value is `06948cb0-cad7-4buh-leba-9ed8b5c345a3`.
 
 - Configurations for database used by Broker
     - dbDriver: [REQUIRED] - Database driver name to use SQL to store broker state. Allowed values: `mssql` or `mysql`.
-    - dbCACert: [REQUIRED] - For Azure SQL service, you need to specify the hostNameInCertificate to enable TLS encryption. For AzureCloud, it is `*.database.windows.net`. For mySQL, you need to specify the content of CA Cert to verify SSL connection.
-    - cfServiceName: (optional) - For CF pushed apps, the service name in VCAP_SERVICES where we should find database credentials. If this option is set, all db parameters will be extracted from the service binding except `dbCACert`. It must be set to the service name for the database service as seen in `cf marketplace` which you want to bind to this broker. In the `manifest.yml`, alias is `DBSERVICENAME` to keep same format as nfsbroker.
+    - dbCACert: (optional) - Content of CA Cert to verify SSL connection.
+    - hostNameInCertificate: (optional) - For Azure SQL service or Azure MySQL service, you need to specify one of below values to enable TLS encryption. For your certificate, you need to specify the Comman Name (CN) in the server certificate.
+      - For AzureCloud: `*.database.windows.net`
+      - For AzureUSGovernment: `*.database.usgovcloudapi.net`
+      - For AzureChinaCloud: `*.database.chinacloudapi.cn`
+      - For AzureGermanCloud: `*.database.cloudapi.de`
+    - cfServiceName: (optional) - For CF pushed apps, the service name in VCAP_SERVICES where we should find database credentials. If this option is set, all db parameters will be extracted from the service binding except `dbCACert` and `hostNameInCertificate`. It must be set to the service name for the database service as seen in `cf marketplace` which you want to bind to this broker. In the `manifest.yml`, alias is `DBSERVICENAME` to keep same format as nfsbroker.
     - dbHostname: (optional) - Database hostname when using SQL to store broker state.
     - dbPort: (optional) - Database port when using SQL to store broker state.
     - dbName: (optional) - Database name when using SQL to store broker state.

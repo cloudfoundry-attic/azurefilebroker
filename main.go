@@ -49,7 +49,7 @@ var dbDriver = flag.String(
 var cfServiceName = flag.String(
 	"cfServiceName",
 	"",
-	"(optional) - For CF pushed apps, the service name in VCAP_SERVICES where we should find database credentials. If this option is set, all db parameters will be extracted from the service binding except dbCACert",
+	"(optional) - For CF pushed apps, the service name in VCAP_SERVICES where we should find database credentials. If this option is set, all db parameters will be extracted from the service binding except dbCACert and hostNameInCertificate",
 )
 
 var dbHostname = flag.String(
@@ -70,10 +70,16 @@ var dbName = flag.String(
 	"(optional) - Database name when using SQL to store broker state",
 )
 
+var hostNameInCertificate = flag.String(
+	"hostNameInCertificate",
+	"",
+	"(optional) - The Comman Name (CN) in the server certificate. For Azure SQL service or Azure MySQL service, please see more details in README.md",
+)
+
 var dbCACert = flag.String(
 	"dbCACert",
 	"",
-	"[REQUIRED] - CA Cert to verify SSL connection. For Azure SQL service, you need to specify the hostNameInCertificate to enable TLS encryption. For AzureCloud, it is *.database.windows.net",
+	"(optional) - CA Cert to verify SSL connection.",
 )
 
 // Bind
@@ -274,7 +280,7 @@ func createServer(logger lager.Logger) ifrit.Runner {
 		parseVcapServices(logger)
 	}
 
-	store := azurefilebroker.NewStore(logger, *dbDriver, dbUsername, dbPassword, *dbHostname, *dbPort, *dbName, *dbCACert)
+	store := azurefilebroker.NewStore(logger, *dbDriver, dbUsername, dbPassword, *dbHostname, *dbPort, *dbName, *dbCACert, *hostNameInCertificate)
 
 	mount := azurefilebroker.NewAzurefilebrokerMountConfig()
 	mount.ReadConf(*allowedOptions, *defaultOptions)

@@ -27,7 +27,8 @@ export ALLOWDELETESTORAGEACCOUNT=true
 export ALLOWDELETEFILESHARE=true
 
 export DBDRIVERNAME="mssql" # Or mysql
-export DBCACERT="*.database.windows.net" # "" for MySQL
+export DBCACERT=""
+export HOSTNAMEINCERTIFICATE=""
 export DB_USERNAME=""
 export DB_PASSWORD=""
 export DBHOST=""
@@ -37,7 +38,7 @@ export DBNAME=""
 echo "-----------------------------------------------------------------"
 echo "Starting azurefilebroker"
 echo "-----------------------------------------------------------------"
-bin/azurefilebroker --logLevel="$LOGLEVEL" --listenAddr="0.0.0.0:$PORT" --serviceID="azurefilebroker" --dbDriver="$DBDRIVERNAME" --dbCACert="$DBCACERT" --cfServiceName="$DBSERVICENAME" --dbHostname="$DBHOST" --dbPort="$DBPORT" --dbName="$DBNAME" --tenantID="$TENANTID" --clientID="$CLIENTID" --clientSecret="$CLIENTSECRET" --defaultSubscriptionID="$DEFAULTSUBSCRIPTIONID" --defaultResourceGroupName="$DEFAULTRESOURCEGROUPNAME" --defaultLocation="$DEFAULTLOCATION" --allowCreateStorageAccount=$ALLOWCREATESTORAGEACCOUNT --allowCreateFileShare=$ALLOWCREATEFILESHARE --allowDeleteStorageAccount=$ALLOWDELETESTORAGEACCOUNT --allowDeleteFileShare=$ALLOWDELETEFILESHARE &
+bin/azurefilebroker --logLevel="$LOGLEVEL" --listenAddr="0.0.0.0:$PORT" --serviceID="azurefilebroker" --dbDriver="$DBDRIVERNAME" --dbCACert="$DBCACERT" --hostNameInCertificate="$HOSTNAMEINCERTIFICATE" --cfServiceName="$DBSERVICENAME" --dbHostname="$DBHOST" --dbPort="$DBPORT" --dbName="$DBNAME" --tenantID="$TENANTID" --clientID="$CLIENTID" --clientSecret="$CLIENTSECRET" --defaultSubscriptionID="$DEFAULTSUBSCRIPTIONID" --defaultResourceGroupName="$DEFAULTRESOURCEGROUPNAME" --defaultLocation="$DEFAULTLOCATION" --allowCreateStorageAccount=$ALLOWCREATESTORAGEACCOUNT --allowCreateFileShare=$ALLOWCREATEFILESHARE --allowDeleteStorageAccount=$ALLOWDELETESTORAGEACCOUNT --allowDeleteFileShare=$ALLOWDELETEFILESHARE &
 echo "-----------------------------------------------------------------"
 echo "Started azurefilebroker"
 echo "-----------------------------------------------------------------"

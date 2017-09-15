@@ -19,7 +19,8 @@ var _ = Describe("MssqlVariant", func() {
 		err      error
 		database azurefilebroker.SqlVariant
 
-		cert string
+		cert                  string
+		hostNameInCertificate string
 	)
 
 	BeforeEach(func() {
@@ -29,7 +30,7 @@ var _ = Describe("MssqlVariant", func() {
 	})
 
 	JustBeforeEach(func() {
-		database = azurefilebroker.NewMSSqlVariantWithShims(logger, "username", "password", "host", "port", "dbName", cert, fakeSql)
+		database = azurefilebroker.NewMSSqlVariantWithShims(logger, "username", "password", "host", "port", "dbName", cert, hostNameInCertificate, fakeSql)
 	})
 
 	Describe(".Connect", func() {
@@ -39,7 +40,8 @@ var _ = Describe("MssqlVariant", func() {
 
 		Context("when hostNameInCertificate is specified", func() {
 			BeforeEach(func() {
-				cert = "domainname"
+				cert = ""
+				hostNameInCertificate = "domainname"
 			})
 
 			It("open call has correctly formed connection string", func() {
@@ -52,9 +54,26 @@ var _ = Describe("MssqlVariant", func() {
 			})
 		})
 
-		Context("when no hostNameInCertificate is specified", func() {
+		Context("when ca cert specified", func() {
+			BeforeEach(func() {
+				cert = exampleCaCert
+				hostNameInCertificate = "domainname"
+			})
+
+			It("open call has correctly formed connection string", func() {
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(fakeSql.OpenCallCount()).To(Equal(1))
+				dbType, connectionString := fakeSql.OpenArgsForCall(0)
+				Expect(dbType).To(Equal("mssql"))
+				Expect(connectionString).To(Equal("sqlserver://username:password@host:port?database=dbName\u0026TrustServerCertificate=false\u0026certificate=%2Ftmp%2FdbCert\u0026encrypt=true\u0026hostNameInCertificate=domainname"))
+			})
+		})
+
+		Context("when neither ca cert nor hostNameInCertificate specified", func() {
 			BeforeEach(func() {
 				cert = ""
+				hostNameInCertificate = ""
 			})
 
 			Context("when it can connect to a valid database", func() {

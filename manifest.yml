@@ -20,7 +20,8 @@
 
     # DB
     DBDRIVERNAME: mssql
-    DBCACERT: '*.database.windows.net'
+    DBCACERT: replace-me                 # The content of CA Cert to verify SSL connection.
+    HOSTNAMEINCERTIFICATE: replace-me    # The Comman Name (CN) in the server certificate.
 
     DBSERVICENAME: replace-me            # Service name for db service as seen in `cf marketplace`. Alias of cfServiceName.
 
