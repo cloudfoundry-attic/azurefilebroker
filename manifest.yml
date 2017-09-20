@@ -21,12 +21,12 @@
     # DB
     DBDRIVERNAME: mssql
     DBCACERT: replace-me                 # The content of CA Cert to verify SSL connection.
-    HOSTNAMEINCERTIFICATE: replace-me    # The Comman Name (CN) in the server certificate.
+    HOSTNAMEINCERTIFICATE: replace-me    # The Common Name (CN) in the server certificate.
 
     DBSERVICENAME: replace-me            # Service name for db service as seen in `cf marketplace`. Alias of cfServiceName.
 
-    DB_USERNAME: replace-me              # Username for the database which stores the data for your broker
-    DB_PASSWORD: replace-me              # Password for the database which stores the data for your broker
+    DBUSERNAME: replace-me              # Username for the database which stores the data for your broker
+    DBPASSWORD: replace-me              # Password for the database which stores the data for your broker
     DBHOST: replace-me                   # Database hostname when using SQL to store broker state.
     DBPORT: replace-me                   # Database port when using SQL to store broker state.
     DBNAME: replace-me                   # Database name when using SQL to store broker state.

@@ -73,7 +73,7 @@ var dbName = flag.String(
 var hostNameInCertificate = flag.String(
 	"hostNameInCertificate",
 	"",
-	"(optional) - The Comman Name (CN) in the server certificate. For Azure SQL service or Azure MySQL service, please see more details in README.md",
+	"(optional) - The Common Name (CN) in the server certificate. For Azure SQL service or Azure MySQL service, please see more details in README.md",
 )
 
 var dbCACert = flag.String(
@@ -232,8 +232,8 @@ func parseCommandLine() {
 func parseEnvironment() {
 	username, _ = os.LookupEnv("USERNAME")
 	password, _ = os.LookupEnv("PASSWORD")
-	dbUsername, _ = os.LookupEnv("DB_USERNAME")
-	dbPassword, _ = os.LookupEnv("DB_PASSWORD")
+	dbUsername, _ = os.LookupEnv("DBUSERNAME")
+	dbPassword, _ = os.LookupEnv("DBPASSWORD")
 }
 
 func checkParams() {
