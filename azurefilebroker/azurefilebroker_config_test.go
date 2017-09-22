@@ -1,7 +1,7 @@
 package azurefilebroker_test
 
 import (
-	. "github.com/AbelHu/azurefilebroker/azurefilebroker"
+	. "github.com/cloudfoundry/azurefilebroker/azurefilebroker"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

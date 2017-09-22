@@ -12,8 +12,8 @@ import (
 	"code.cloudfoundry.org/goshims/osshim"
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagerflags"
-	"github.com/AbelHu/azurefilebroker/azurefilebroker"
-	"github.com/AbelHu/azurefilebroker/utils"
+	"github.com/cloudfoundry/azurefilebroker/azurefilebroker"
+	"github.com/cloudfoundry/azurefilebroker/utils"
 
 	"github.com/pivotal-cf/brokerapi"
 	"github.com/tedsuo/ifrit"

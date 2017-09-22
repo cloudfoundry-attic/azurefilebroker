@@ -5,8 +5,8 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
-	"github.com/AbelHu/azurefilebroker/azurefilebroker"
-	"github.com/AbelHu/azurefilebroker/azurefilebrokerfakes"
+	"github.com/cloudfoundry/azurefilebroker/azurefilebroker"
+	"github.com/cloudfoundry/azurefilebroker/azurefilebrokerfakes"
 	"github.com/pivotal-cf/brokerapi"
 
 	"database/sql"

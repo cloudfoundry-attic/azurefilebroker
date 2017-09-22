@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"code.cloudfoundry.org/goshims/sqlshim"
-	"github.com/AbelHu/azurefilebroker/azurefilebroker"
+	"github.com/cloudfoundry/azurefilebroker/azurefilebroker"
 )
 
 type FakeSqlVariant struct {

@@ -180,7 +180,7 @@ func (b *Broker) Services(_ context.Context) []brokerapi.Service {
 	return []brokerapi.Service{{
 		ID:            b.static.ServiceID,
 		Name:          b.static.ServiceName,
-		Description:   "Azure File SMB volumes (see: https://github.com/AbelHu/smb-volume-release/)",
+		Description:   "Azure File SMB volumes (see: https://github.com/cloudfoundry/smb-volume-release/)",
 		Bindable:      true,
 		PlanUpdatable: false,
 		Tags:          []string{"azurefile", "smb"},

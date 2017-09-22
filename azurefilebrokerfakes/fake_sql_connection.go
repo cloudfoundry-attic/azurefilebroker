@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/AbelHu/azurefilebroker/azurefilebroker"
+	"github.com/cloudfoundry/azurefilebroker/azurefilebroker"
 )
 
 type FakeSqlConnection struct {

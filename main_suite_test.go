@@ -17,7 +17,7 @@ func TestAzurefilebroker(t *testing.T) {
 
 var _ = SynchronizedBeforeSuite(func() []byte {
 	var err error
-	binaryPath, err = gexec.Build("github.com/AbelHu/azurefilebroker", "-race")
+	binaryPath, err = gexec.Build("github.com/cloudfoundry/azurefilebroker", "-race")
 	Expect(err).NotTo(HaveOccurred())
 
 	return []byte(binaryPath)
