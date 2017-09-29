@@ -2,9 +2,11 @@
   buildpack: binary_buildpack
   env:
     LOGLEVEL: info                       # Log level: error, warn, info, debug
-    SERVICENAME: azuresmbvolume          # Service name to publish in the marketplace
+    SERVICENAME: smbvolume               # Service name to publish in the marketplace
     USERNAME: admin                      # Username for your broker
     PASSWORD: admin                      # Password for your broker
+    ENVIRONMENT: Preexisting             # Preexisting, AzureCloud, AzureChinaCloud, AzureUSGovernment or AzureGermanCloud
+    DEFAULTOPTIONS: replace-me           # Suggest to use vers:3.0 for AzureFileShare
 
     # Azure
     TENANTID: replace-me                 # The tenant id for your service principal.

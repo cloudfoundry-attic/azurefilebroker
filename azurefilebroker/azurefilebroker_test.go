@@ -30,7 +30,7 @@ var _ = Describe("Configuration", func() {
 		})
 
 		It("should not raise an error", func() {
-			err := config.Validate()
+			err := config.ValidateForAzureFileShare()
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -43,7 +43,7 @@ var _ = Describe("Configuration", func() {
 		})
 
 		It("should raise an error", func() {
-			err := config.Validate()
+			err := config.ValidateForAzureFileShare()
 			Expect(err).To(MatchError("Missing required parameters: subscription_id"))
 		})
 	})
@@ -56,7 +56,7 @@ var _ = Describe("Configuration", func() {
 		})
 
 		It("should raise an error", func() {
-			err := config.Validate()
+			err := config.ValidateForAzureFileShare()
 			Expect(err).To(MatchError("Missing required parameters: resource_group_name"))
 		})
 	})
@@ -69,7 +69,7 @@ var _ = Describe("Configuration", func() {
 		})
 
 		It("should raise an error", func() {
-			err := config.Validate()
+			err := config.ValidateForAzureFileShare()
 			Expect(err).To(MatchError("Missing required parameters: storage_account_name"))
 		})
 	})
@@ -82,7 +82,7 @@ var _ = Describe("Configuration", func() {
 		})
 
 		It("should raise an error", func() {
-			err := config.Validate()
+			err := config.ValidateForAzureFileShare()
 			Expect(err).To(MatchError("Missing required parameters: subscription_id, resource_group_name, storage_account_name"))
 		})
 	})

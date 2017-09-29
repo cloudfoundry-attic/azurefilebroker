@@ -60,11 +60,12 @@ type FakeStore struct {
 	createServiceInstanceReturnsOnCall map[int]struct {
 		result1 error
 	}
-	CreateBindingDetailsStub        func(id string, details brokerapi.BindDetails) error
+	CreateBindingDetailsStub        func(id string, details brokerapi.BindDetails, redactRawParameter bool) error
 	createBindingDetailsMutex       sync.RWMutex
 	createBindingDetailsArgsForCall []struct {
-		id      string
-		details brokerapi.BindDetails
+		id                 string
+		details            brokerapi.BindDetails
+		redactRawParameter bool
 	}
 	createBindingDetailsReturns struct {
 		result1 error
@@ -358,17 +359,18 @@ func (fake *FakeStore) CreateServiceInstanceReturnsOnCall(i int, result1 error) 
 	}{result1}
 }
 
-func (fake *FakeStore) CreateBindingDetails(id string, details brokerapi.BindDetails) error {
+func (fake *FakeStore) CreateBindingDetails(id string, details brokerapi.BindDetails, redactRawParameter bool) error {
 	fake.createBindingDetailsMutex.Lock()
 	ret, specificReturn := fake.createBindingDetailsReturnsOnCall[len(fake.createBindingDetailsArgsForCall)]
 	fake.createBindingDetailsArgsForCall = append(fake.createBindingDetailsArgsForCall, struct {
-		id      string
-		details brokerapi.BindDetails
-	}{id, details})
-	fake.recordInvocation("CreateBindingDetails", []interface{}{id, details})
+		id                 string
+		details            brokerapi.BindDetails
+		redactRawParameter bool
+	}{id, details, redactRawParameter})
+	fake.recordInvocation("CreateBindingDetails", []interface{}{id, details, redactRawParameter})
 	fake.createBindingDetailsMutex.Unlock()
 	if fake.CreateBindingDetailsStub != nil {
-		return fake.CreateBindingDetailsStub(id, details)
+		return fake.CreateBindingDetailsStub(id, details, redactRawParameter)
 	}
 	if specificReturn {
 		return ret.result1
@@ -382,10 +384,10 @@ func (fake *FakeStore) CreateBindingDetailsCallCount() int {
 	return len(fake.createBindingDetailsArgsForCall)
 }
 
-func (fake *FakeStore) CreateBindingDetailsArgsForCall(i int) (string, brokerapi.BindDetails) {
+func (fake *FakeStore) CreateBindingDetailsArgsForCall(i int) (string, brokerapi.BindDetails, bool) {
 	fake.createBindingDetailsMutex.RLock()
 	defer fake.createBindingDetailsMutex.RUnlock()
-	return fake.createBindingDetailsArgsForCall[i].id, fake.createBindingDetailsArgsForCall[i].details
+	return fake.createBindingDetailsArgsForCall[i].id, fake.createBindingDetailsArgsForCall[i].details, fake.createBindingDetailsArgsForCall[i].redactRawParameter
 }
 
 func (fake *FakeStore) CreateBindingDetailsReturns(result1 error) {

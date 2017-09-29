@@ -9,7 +9,6 @@ import (
 
 	"code.cloudfoundry.org/clock"
 	"code.cloudfoundry.org/debugserver"
-	"code.cloudfoundry.org/goshims/osshim"
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagerflags"
 	"github.com/cloudfoundry/azurefilebroker/azurefilebroker"
@@ -29,21 +28,27 @@ var atAddress = flag.String(
 
 var serviceName = flag.String(
 	"serviceName",
-	"azuresmbvolume",
+	"smbvolume",
 	"Name of the service to register with cloud controller",
 )
 
 var serviceID = flag.String(
 	"serviceID",
-	"06948cb0-cad7-4buh-leba-9ed8b5c345a3",
+	"06948cb0-cad7-4buh-leba-9ed8b5c345a0",
 	"ID of the service to register with cloud controller",
+)
+
+var environment = flag.String(
+	"environment",
+	"Preexisting",
+	"The environment. `Preexisting` or the environment for Azure Management Service: `AzureCloud`, `AzureChinaCloud`, `AzureUSGovernment` or `AzureGermanCloud`",
 )
 
 // DB
 var dbDriver = flag.String(
 	"dbDriver",
 	"",
-	"[REQUIRED] - Database driver name when using SQL to store broker state",
+	"[REQUIRED] - Database driver name when using SQL to store broker state. `mssql` or `mysql`",
 )
 
 var cfServiceName = flag.String(
@@ -85,39 +90,33 @@ var dbCACert = flag.String(
 // Bind
 var allowedOptions = flag.String(
 	"allowedOptions",
-	"share,uid,gid,file_mode,dir_mode,readonly,vers,mount",
+	"share,uid,gid,file_mode,dir_mode,readonly,vers,mount,domain,username,password,sec",
 	"A comma separated list of parameters allowed to be set in during bind operations",
 )
 
 var defaultOptions = flag.String(
 	"defaultOptions",
-	"vers:3.0",
+	"",
 	"A comma separated list of defaults specified as param:value. If a parameter has a default value and is not in the allowed list, this default value becomes a fixed value that cannot be overridden",
 )
 
 // Azure
-var environment = flag.String(
-	"environment",
-	"AzureCloud",
-	"The environment for Azure Management Service. AzureCloud, AzureChinaCloud, AzureUSGovernment or AzureGermanCloud",
-)
-
 var tenantID = flag.String(
 	"tenantID",
 	"",
-	"[REQUIRED] - The tenant id for your service principal",
+	"(optional) - Required for Azure Management Service. The tenant id for your service principal",
 )
 
 var clientID = flag.String(
 	"clientID",
 	"",
-	"[REQUIRED] - The client id for your service principal",
+	"(optional) - Required for Azure Management Service. The client id for your service principal",
 )
 
 var clientSecret = flag.String(
 	"clientSecret",
 	"",
-	"[REQUIRED] - The client secret for your service principal",
+	"(optional) - Required for Azure Management Service. The client secret for your service principal",
 )
 
 var defaultSubscriptionID = flag.String(
@@ -322,10 +321,7 @@ func createServer(logger lager.Logger) ifrit.Runner {
 
 	config := azurefilebroker.NewAzurefilebrokerConfig(mount, cloud)
 
-	serviceBroker := azurefilebroker.New(logger,
-		*serviceName, *serviceID,
-		&osshim.OsShim{}, clock.NewClock(),
-		store, config)
+	serviceBroker := azurefilebroker.New(logger, *serviceName, *serviceID, clock.NewClock(), store, config)
 
 	credentials := brokerapi.BrokerCredentials{Username: username, Password: password}
 	handler := brokerapi.New(serviceBroker, logger.Session("broker-api"), credentials)

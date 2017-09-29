@@ -1,7 +1,10 @@
 package azurefilebroker_test
 
 import (
+	"bytes"
+	"crypto/md5"
 	"errors"
+	"fmt"
 
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
@@ -21,22 +24,22 @@ import (
 
 var _ = Describe("Store", func() {
 	var (
-		store                                                      azurefilebroker.Store
-		logger                                                     lager.Logger
-		fakeSqlDb                                                  = &sql_fake.FakeSqlDB{}
-		fakeVariant                                                = &azurefilebrokerfakes.FakeSqlVariant{}
-		err                                                        error
-		storeType                                                  string
-		bindingID, serviceID, planID, orgGUID, spaceGUID, appGUID  string
-		instanceID, storageAccountName, fileShareID, fileShareName string
-		serviceInstance                                            azurefilebroker.ServiceInstance
-		sqlStore                                                   azurefilebroker.SqlStore
-		db                                                         *sql.DB
-		mock                                                       sqlmock.Sqlmock
-		bindResource                                               brokerapi.BindResource
-		rawParameters                                              json.RawMessage
-		bindDetails                                                brokerapi.BindDetails
-		fileShare                                                  azurefilebroker.FileShare
+		store                                                     azurefilebroker.Store
+		logger                                                    lager.Logger
+		fakeSqlDb                                                 = &sql_fake.FakeSqlDB{}
+		fakeVariant                                               = &azurefilebrokerfakes.FakeSqlVariant{}
+		err                                                       error
+		storeType                                                 string
+		bindingID, serviceID, planID, orgGUID, spaceGUID, appGUID string
+		instanceID, targetName, fileShareID, fileShareName        string
+		serviceInstance                                           azurefilebroker.ServiceInstance
+		sqlStore                                                  azurefilebroker.SqlStore
+		db                                                        *sql.DB
+		mock                                                      sqlmock.Sqlmock
+		bindResource                                              brokerapi.BindResource
+		rawParameters                                             json.RawMessage
+		bindDetails                                               brokerapi.BindDetails
+		fileShare                                                 azurefilebroker.FileShare
 	)
 
 	BeforeEach(func() {
@@ -80,12 +83,12 @@ var _ = Describe("Store", func() {
 				planID = "plan_123"
 				orgGUID = "org_123"
 				spaceGUID = "space_123"
-				storageAccountName = "storage_123"
+				targetName = "target_123"
 
 				columns := []string{"id", "value"}
 
 				rows := sqlmock.NewRows(columns)
-				jsonvalue, err := json.Marshal(azurefilebroker.ServiceInstance{PlanID: planID, ServiceID: serviceID, OrganizationGUID: orgGUID, SpaceGUID: spaceGUID, StorageAccountName: storageAccountName})
+				jsonvalue, err := json.Marshal(azurefilebroker.ServiceInstance{PlanID: planID, ServiceID: serviceID, OrganizationGUID: orgGUID, SpaceGUID: spaceGUID, TargetName: targetName})
 				Expect(err).NotTo(HaveOccurred())
 				rows.AddRow(serviceID, jsonvalue)
 
@@ -101,7 +104,7 @@ var _ = Describe("Store", func() {
 				Expect(serviceInstance.PlanID).To(Equal(planID))
 				Expect(serviceInstance.OrganizationGUID).To(Equal(orgGUID))
 				Expect(serviceInstance.SpaceGUID).To(Equal(spaceGUID))
-				Expect(serviceInstance.StorageAccountName).To(Equal(storageAccountName))
+				Expect(serviceInstance.TargetName).To(Equal(targetName))
 			})
 		})
 
@@ -218,13 +221,21 @@ var _ = Describe("Store", func() {
 			serviceID = "service_123"
 			spaceGUID = "space_123"
 			instanceID = "instance_123"
-			storageAccountName = "storage_123"
-			serviceInstance = azurefilebroker.ServiceInstance{ServiceID: serviceID, PlanID: planID, OrganizationGUID: orgGUID, SpaceGUID: spaceGUID, StorageAccountName: storageAccountName}
+			targetName = "target_123"
+			serviceInstance = azurefilebroker.ServiceInstance{ServiceID: serviceID, PlanID: planID, OrganizationGUID: orgGUID, SpaceGUID: spaceGUID, TargetName: targetName}
 			jsonValue, err := json.Marshal(serviceInstance)
 			Expect(err).NotTo(HaveOccurred())
 
+			var buffer bytes.Buffer
+			buffer.WriteString(serviceInstance.ServiceID)
+			buffer.WriteString(serviceInstance.PlanID)
+			buffer.WriteString(serviceInstance.OrganizationGUID)
+			buffer.WriteString(serviceInstance.SpaceGUID)
+			buffer.WriteString(serviceInstance.TargetName)
+			hashKey := fmt.Sprintf("%x", md5.Sum(buffer.Bytes()))
+
 			result := sqlmock.NewResult(1, 1)
-			mock.ExpectExec("INSERT INTO service_instances").WithArgs(instanceID, orgGUID, spaceGUID, storageAccountName, jsonValue).WillReturnResult(result)
+			mock.ExpectExec(`INSERT INTO service_instances \(id, service_id, plan_id, organization_guid, space_guid, target_name, hash_key, value\) VALUES \([?], [?], [?], [?], [?], [?], [?], [?]\)`).WithArgs(instanceID, serviceID, planID, orgGUID, spaceGUID, targetName, hashKey, jsonValue).WillReturnResult(result)
 		})
 		JustBeforeEach(func() {
 			err = sqlStore.CreateServiceInstance(instanceID, serviceInstance)
@@ -248,10 +259,10 @@ var _ = Describe("Store", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			result := sqlmock.NewResult(1, 1)
-			mock.ExpectExec("INSERT INTO service_bindings").WithArgs(bindingID, jsonValue).WillReturnResult(result)
+			mock.ExpectExec(`INSERT INTO service_bindings \(id, value\) VALUES \([?], [?]\)`).WithArgs(bindingID, jsonValue).WillReturnResult(result)
 		})
 		JustBeforeEach(func() {
-			err = sqlStore.CreateBindingDetails(bindingID, bindDetails)
+			err = sqlStore.CreateBindingDetails(bindingID, bindDetails, false)
 		})
 
 		It("should not error and call INSERT INTO on the db", func() {

@@ -1,6 +1,8 @@
 package azurefilebroker
 
 import (
+	"bytes"
+	"crypto/md5"
 	"fmt"
 
 	"database/sql"
@@ -11,14 +13,14 @@ import (
 	"github.com/pivotal-cf/brokerapi"
 )
 
-//go:generate counterfeiter -o azurefilebrokerfakes/fake_store.go . Store
+//go:generate counterfeiter -o ../azurefilebrokerfakes/fake_store.go . Store
 type Store interface {
 	RetrieveServiceInstance(id string) (ServiceInstance, error)
 	RetrieveBindingDetails(id string) (brokerapi.BindDetails, error)
 	RetrieveFileShare(id string) (FileShare, error)
 
 	CreateServiceInstance(id string, instance ServiceInstance) error
-	CreateBindingDetails(id string, details brokerapi.BindDetails) error
+	CreateBindingDetails(id string, details brokerapi.BindDetails, redactRawParameter bool) error
 	CreateFileShare(id string, share FileShare) error
 
 	UpdateFileShare(id string, share FileShare) error
@@ -155,15 +157,31 @@ func (s *SqlStore) CreateServiceInstance(id string, instance ServiceInstance) er
 		return err
 	}
 
-	query := "INSERT INTO service_instances (id, organization_guid, space_guid, storage_account_name, value) VALUES (?, ?, ?, ?, ?)"
-	_, err = s.Database.Exec(query, id, instance.OrganizationGUID, instance.SpaceGUID, instance.StorageAccountName, jsonData)
+	// Maximum length of a unique key in mysql is 767
+	// So here we calculates MD5 to generate a unique key to avoid duplicate instances
+	var buffer bytes.Buffer
+	buffer.WriteString(instance.ServiceID)
+	buffer.WriteString(instance.PlanID)
+	buffer.WriteString(instance.OrganizationGUID)
+	buffer.WriteString(instance.SpaceGUID)
+	buffer.WriteString(instance.TargetName)
+	hashKey := fmt.Sprintf("%x", md5.Sum(buffer.Bytes()))
+
+	query := "INSERT INTO service_instances (id, service_id, plan_id, organization_guid, space_guid, target_name, hash_key, value) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+	_, err = s.Database.Exec(query, id, instance.ServiceID, instance.PlanID, instance.OrganizationGUID, instance.SpaceGUID, instance.TargetName, hashKey, jsonData)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *SqlStore) CreateBindingDetails(id string, details brokerapi.BindDetails) error {
+func (s *SqlStore) CreateBindingDetails(id string, details brokerapi.BindDetails, redactRawParameter bool) error {
+	// Preexisting shares do not need to use RawParameters of BindDetails in unbind operation
+	// For security, do not store RawParameters in broker's database.
+	if redactRawParameter {
+		details.RawParameters = nil
+	}
+
 	jsonData, err := json.Marshal(details)
 	if err != nil {
 		return err

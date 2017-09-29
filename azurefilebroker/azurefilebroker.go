@@ -14,7 +14,6 @@ import (
 	"crypto/md5"
 
 	"code.cloudfoundry.org/clock"
-	"code.cloudfoundry.org/goshims/osshim"
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi"
 )
@@ -34,20 +33,43 @@ const (
 	lockTimeoutInSeconds int = 30
 )
 
+/*
+This broker supports both AzureFileShare and preexisting shares.
+	AzureFileShare:
+		Provision with parameters: subscription_id, resource_group_name, storage_account_name, location, use_https, sku_name, enable_encryption, custom_domain_name, use_sub_domain
+			Create or use a storage account
+		Bind with parameters which are defined in BindOptions: uid, gid, file_mode, dir_mode, readonly, mount, vers, share
+			Create or use a file share; Return credentials
+		Unbind
+			Delete a file share or do nothing
+		Deprovision
+			Delete a storage account or do nothing
+	Preexisting shares:
+		Provision with parameters: share
+			Use a preexsting share
+		Bind with parameters: uid, gid, file_mode, dir_mode, readonly, mount, domain, username, password, sec
+			Return credentials
+		Unbind
+			Do nothing
+		Deprovision
+			Do nothing
+*/
+
 // TBD: custom_domain_name and use_sub_domain are not supported now.
 type Configuration struct {
 	SubscriptionID     string `json:"subscription_id"`
 	ResourceGroupName  string `json:"resource_group_name"`
-	StorageAccountName string `json:"storage_account_name"`
+	StorageAccountName string `json:"storage_account_name"` // Required for AzureFileShare
 	Location           string `json:"location"`
 	UseHTTPS           string `json:"use_https"` // bool
 	SkuName            string `json:"sku_name"`
 	CustomDomainName   string `json:"custom_domain_name"`
 	UseSubDomain       string `json:"use_sub_domain"`    // bool
 	EnableEncryption   string `json:"enable_encryption"` // bool
+	Share              string `json:"share"`             // Required for preexisting shares
 }
 
-func (config *Configuration) Validate() error {
+func (config *Configuration) ValidateForAzureFileShare() error {
 	missingKeys := []string{}
 	if config.SubscriptionID == "" {
 		missingKeys = append(missingKeys, "subscription_id")
@@ -66,17 +88,21 @@ func (config *Configuration) Validate() error {
 }
 
 type BindOptions struct {
-	FileShareName string `json:"share"`
 	UID           string `json:"uid"`
 	GID           string `json:"gid"`
 	FileMode      string `json:"file_mode"`
 	DirMode       string `json:"dir_mode"`
 	Readonly      bool   `json:"readonly"`
-	Vers          string `json:"vers"`
 	Mount         string `json:"mount"`
+	Vers          string `json:"vers"`     // Required for AzureFileShare
+	FileShareName string `json:"share"`    // Required for AzureFileShare
+	Domain        string `json:"domain"`   // Optional for preexisting shares
+	Username      string `json:"username"` // Required for preexisting shares
+	Password      string `json:"password"` // Optional for preexisting shares
+	Sec           string `json:"sec"`      // Optional for preexisting shares
 }
 
-// ToMap Omit FileShareName
+// ToMap Omit Mount, FileShareName, Domain, Username and Password
 func (options BindOptions) ToMap() map[string]string {
 	ret := make(map[string]string)
 	if options.UID != "" {
@@ -97,7 +123,24 @@ func (options BindOptions) ToMap() map[string]string {
 	if options.Vers != "" {
 		ret["vers"] = options.Vers
 	}
+	if options.Sec != "" {
+		ret["sec"] = options.Sec
+	}
 	return ret
+}
+
+func (options BindOptions) Validate(isPreexisting bool) error {
+	missingKeys := []string{}
+	if !isPreexisting {
+		if options.FileShareName == "" {
+			missingKeys = append(missingKeys, "share")
+		}
+	}
+
+	if len(missingKeys) > 0 {
+		return fmt.Errorf("Missing required parameters: %s", strings.Join(missingKeys, ", "))
+	}
+	return nil
 }
 
 type staticState struct {
@@ -123,9 +166,10 @@ type ServiceInstance struct {
 	PlanID                  string `json:"plan_id"`
 	OrganizationGUID        string `json:"organization_guid"`
 	SpaceGUID               string `json:"space_guid"`
+	TargetName              string `json:"target_name"`    // AzureFileShare: StorageAccountName; Preexisting shares: Share URL
+	IsPreexisting           bool   `json:"is_preexisting"` // True when preexisting shares are used; False when AzureFileShare is used.
 	SubscriptionID          string `json:"subscription_id"`
 	ResourceGroupName       string `json:"resource_group_name"`
-	StorageAccountName      string `json:"storage_account_name"`
 	UseHTTPS                string `json:"use_https"`
 	IsCreatedStorageAccount bool   `json:"is_created_storage_account"`
 	OperationURL            string `json:"operation_url"`
@@ -137,10 +181,8 @@ type lock interface {
 	Unlock()
 }
 
-// TBD: Remove os if os is never used
 type Broker struct {
 	logger lager.Logger
-	os     osshim.Os
 	mutex  lock
 	clock  clock.Clock
 	static staticState
@@ -151,14 +193,12 @@ type Broker struct {
 func New(
 	logger lager.Logger,
 	serviceName, serviceID string,
-	os osshim.Os,
 	clock clock.Clock,
 	store Store,
 	config *Config,
 ) *Broker {
 	theBroker := Broker{
 		logger: logger,
-		os:     os,
 		mutex:  &sync.Mutex{},
 		clock:  clock,
 		static: staticState{
@@ -172,36 +212,60 @@ func New(
 	return &theBroker
 }
 
+func (b *Broker) isSupportAzureFileShare() bool {
+	return b.config.cloud.Azure.IsSupportAzureFileShare()
+}
+
 func (b *Broker) Services(_ context.Context) []brokerapi.Service {
 	logger := b.logger.Session("services")
 	logger.Info("start")
 	defer logger.Info("end")
 
+	var plans []brokerapi.ServicePlan
+	if b.isSupportAzureFileShare() {
+		plans = []brokerapi.ServicePlan{
+			{
+				Name:        "Existing",
+				ID:          "06948cb0-cad7-4buh-leba-9ed8b5c345a1",
+				Description: "A preexisting filesystem",
+			},
+			{
+				Name:        "AzureFileShare",
+				ID:          "06948cb0-cad7-4buh-leba-9ed8b5c345a2",
+				Description: "An Azure File Share filesystem",
+			},
+		}
+	} else {
+		plans = []brokerapi.ServicePlan{
+			{
+				Name:        "Existing",
+				ID:          "06948cb0-cad7-4buh-leba-9ed8b5c345a1",
+				Description: "A preexisting filesystem",
+			},
+		}
+	}
+
 	return []brokerapi.Service{{
 		ID:            b.static.ServiceID,
 		Name:          b.static.ServiceName,
-		Description:   "Azure File SMB volumes (see: https://github.com/cloudfoundry/smb-volume-release/)",
+		Description:   "SMB volumes (see: https://github.com/cloudfoundry/smb-volume-release/)",
 		Bindable:      true,
 		PlanUpdatable: false,
 		Tags:          []string{"azurefile", "smb"},
 		Requires:      []brokerapi.RequiredPermission{permissionVolumeMount},
-
-		Plans: []brokerapi.ServicePlan{
-			{
-				Name:        "AzureFileShare",
-				ID:          "06948cb0-cad7-4buh-leba-9ed8b5c345a4",
-				Description: "Azure File Share",
-			},
-		},
+		Plans:         plans,
 	}}
 }
 
-// Provision Create a service instance which is mapped to a storage account
-// UseHTTPS must be set to false. Otherwise, the mount in Linux will fail. https://docs.microsoft.com/en-us/azure/storage/storage-security-guide
+// Provision Create a service instance which is mapped to a storage account or preexisting shares
+// For AzureFileShare: UseHTTPS must be set to false. Otherwise, the mount in Linux will fail. https://docs.microsoft.com/en-us/azure/storage/storage-security-guide
 func (b *Broker) Provision(context context.Context, instanceID string, details brokerapi.ProvisionDetails, asyncAllowed bool) (_ brokerapi.ProvisionedServiceSpec, e error) {
 	logger := b.logger.Session("provision").WithData(lager.Data{"instanceID": instanceID, "details": details, "asyncAllowed": asyncAllowed})
 	logger.Info("start")
 	defer logger.Info("end")
+
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
 
 	var configuration Configuration
 	var decoder = json.NewDecoder(bytes.NewBuffer(details.RawParameters))
@@ -210,6 +274,32 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 		return brokerapi.ProvisionedServiceSpec{}, brokerapi.ErrRawParamsInvalid
 	}
 
+	if !b.isSupportAzureFileShare() && configuration.Share == "" {
+		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Missing required parameters: share")
+	}
+
+	if configuration.Share != "" {
+		// Provisiong preexisting shares
+		serviceInstance := ServiceInstance{
+			ServiceID:        details.ServiceID,
+			PlanID:           details.PlanID,
+			OrganizationGUID: details.OrganizationGUID,
+			SpaceGUID:        details.SpaceGUID,
+			TargetName:       configuration.Share,
+			IsPreexisting:    true,
+		}
+
+		if err := b.store.CreateServiceInstance(instanceID, serviceInstance); err != nil {
+			logger.Error("create-service-instance", err, lager.Data{"serviceInstance": serviceInstance})
+			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Failed to store instance details %q: %s", instanceID, err)
+		}
+
+		logger.Debug("service-instance-created", lager.Data{"serviceInstance": serviceInstance})
+
+		return brokerapi.ProvisionedServiceSpec{IsAsync: false}, nil
+	}
+
+	// Provisioning an Azure file share
 	if configuration.SubscriptionID == "" {
 		configuration.SubscriptionID = b.config.cloud.Azure.DefaultSubscriptionID
 	}
@@ -221,13 +311,10 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 		configuration.Location = b.config.cloud.Azure.DefaultLocation
 	}
 
-	if err := configuration.Validate(); err != nil {
+	if err := configuration.ValidateForAzureFileShare(); err != nil {
 		logger.Error("validate-configuration", err)
 		return brokerapi.ProvisionedServiceSpec{}, err
 	}
-
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
 
 	storageAccount, err := b.getStorageAccount(logger, configuration)
 	if err != nil {
@@ -236,17 +323,18 @@ func (b *Broker) Provision(context context.Context, instanceID string, details b
 	}
 
 	serviceInstance := ServiceInstance{
-		details.ServiceID,
-		details.PlanID,
-		details.OrganizationGUID,
-		details.SpaceGUID,
-		storageAccount.SubscriptionID,
-		storageAccount.ResourceGroupName,
-		storageAccount.StorageAccountName,
-		strconv.FormatBool(storageAccount.UseHTTPS),
-		storageAccount.IsCreatedStorageAccount,
-		storageAccount.OperationURL,
-		databaseVersion,
+		ServiceID:               details.ServiceID,
+		PlanID:                  details.PlanID,
+		OrganizationGUID:        details.OrganizationGUID,
+		SpaceGUID:               details.SpaceGUID,
+		TargetName:              storageAccount.StorageAccountName,
+		IsPreexisting:           false,
+		SubscriptionID:          storageAccount.SubscriptionID,
+		ResourceGroupName:       storageAccount.ResourceGroupName,
+		UseHTTPS:                strconv.FormatBool(storageAccount.UseHTTPS),
+		IsCreatedStorageAccount: storageAccount.IsCreatedStorageAccount,
+		OperationURL:            storageAccount.OperationURL,
+		DatabaseVersion:         databaseVersion,
 	}
 
 	err = b.store.CreateServiceInstance(instanceID, serviceInstance)
@@ -335,31 +423,33 @@ func (b *Broker) Deprovision(context context.Context, instanceID string, details
 		return brokerapi.DeprovisionServiceSpec{}, brokerapi.ErrInstanceDoesNotExist
 	}
 
-	if serviceInstance.IsCreatedStorageAccount && b.config.cloud.Control.AllowDeleteStorageAccount {
-		storageAccount, err := NewStorageAccount(
-			logger,
-			Configuration{
-				SubscriptionID:     serviceInstance.SubscriptionID,
-				ResourceGroupName:  serviceInstance.ResourceGroupName,
-				StorageAccountName: serviceInstance.StorageAccountName,
-				UseHTTPS:           serviceInstance.UseHTTPS,
-			})
-		if err != nil {
-			return brokerapi.DeprovisionServiceSpec{}, err
-		}
-		storageAccount.SDKClient, err = NewAzureStorageAccountSDKClient(
-			logger,
-			&b.config.cloud,
-			storageAccount,
-		)
-		if err != nil {
-			return brokerapi.DeprovisionServiceSpec{}, err
-		}
-		if ok, err := storageAccount.SDKClient.Exists(); err != nil {
-			return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("Failed to delete the storage account %q under the resource group %q in the subscription %q: %v", serviceInstance.StorageAccountName, serviceInstance.ResourceGroupName, serviceInstance.SubscriptionID, err)
-		} else if ok {
-			if err := storageAccount.SDKClient.DeleteStorageAccount(); err != nil {
-				return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("Failed to delete the storage account %q under the resource group %q in the subscription %q: %v", serviceInstance.StorageAccountName, serviceInstance.ResourceGroupName, serviceInstance.SubscriptionID, err)
+	if !serviceInstance.IsPreexisting {
+		if serviceInstance.IsCreatedStorageAccount && b.config.cloud.Control.AllowDeleteStorageAccount {
+			storageAccount, err := NewStorageAccount(
+				logger,
+				Configuration{
+					SubscriptionID:     serviceInstance.SubscriptionID,
+					ResourceGroupName:  serviceInstance.ResourceGroupName,
+					StorageAccountName: serviceInstance.TargetName,
+					UseHTTPS:           serviceInstance.UseHTTPS,
+				})
+			if err != nil {
+				return brokerapi.DeprovisionServiceSpec{}, err
+			}
+			storageAccount.SDKClient, err = NewAzureStorageAccountSDKClient(
+				logger,
+				&b.config.cloud,
+				storageAccount,
+			)
+			if err != nil {
+				return brokerapi.DeprovisionServiceSpec{}, err
+			}
+			if ok, err := storageAccount.SDKClient.Exists(); err != nil {
+				return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("Failed to delete the storage account %q under the resource group %q in the subscription %q: %v", serviceInstance.TargetName, serviceInstance.ResourceGroupName, serviceInstance.SubscriptionID, err)
+			} else if ok {
+				if err := storageAccount.SDKClient.DeleteStorageAccount(); err != nil {
+					return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("Failed to delete the storage account %q under the resource group %q in the subscription %q: %v", serviceInstance.TargetName, serviceInstance.ResourceGroupName, serviceInstance.SubscriptionID, err)
+				}
 			}
 		}
 	}
@@ -379,6 +469,16 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 	logger.Info("start")
 	defer logger.Info("end")
 
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	serviceInstance, err := b.store.RetrieveServiceInstance(instanceID)
+	if err != nil {
+		err := brokerapi.ErrInstanceDoesNotExist
+		logger.Error("retrieve-service-instance", err)
+		return brokerapi.Binding{}, err
+	}
+
 	if details.AppGUID == "" {
 		err := brokerapi.ErrAppGuidNotProvided
 		logger.Error("missing-app-guid-parameter", err)
@@ -393,83 +493,93 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 		})
 		return brokerapi.Binding{}, brokerapi.ErrRawParamsInvalid
 	}
-	if bindOptions.FileShareName == "" {
-		err := fmt.Errorf("Missing required parameters: \"share\"")
-		logger.Error("missing-share-parameter", err)
+	if err := bindOptions.Validate(serviceInstance.IsPreexisting); err != nil {
+		logger.Error("validate-bind-parameters", err)
 		return brokerapi.Binding{}, err
 	}
-	fileShareName := bindOptions.FileShareName
 
 	globalMountConfig := b.config.mount.Copy()
 	if err := globalMountConfig.SetEntries(bindOptions.ToMap()); err != nil {
 		logger.Error("set-mount-entries", err, lager.Data{
-			"share":       fileShareName,
 			"bindOptions": bindOptions,
 			"mount":       globalMountConfig.MakeConfig(),
 		})
 		return brokerapi.Binding{}, err
 	}
 
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
+	mountConfig := globalMountConfig.MakeConfig()
+	var source, username, password string
 
-	serviceInstance, err := b.store.RetrieveServiceInstance(instanceID)
-	if err != nil {
-		err := brokerapi.ErrInstanceDoesNotExist
-		logger.Error("retrieve-service-instance", err)
-		return brokerapi.Binding{}, err
-	}
-
-	fileShareID := getFileShareID(instanceID, fileShareName)
-	err = b.store.GetLockForUpdate(fileShareID, lockTimeoutInSeconds)
-	if err != nil {
-		logger.Error("get-lock-for-update", err)
-		return brokerapi.Binding{}, err
-	}
-	defer b.store.ReleaseLockForUpdate(fileShareID)
-
-	fileShare, err := b.store.RetrieveFileShare(fileShareID)
-	if err != nil {
-		if err != brokerapi.ErrInstanceDoesNotExist {
-			logger.Error("retrieve-file-share", err)
-			return brokerapi.Binding{}, err
+	if serviceInstance.IsPreexisting {
+		// Bind for preexisting shares
+		if bindOptions.Domain != "" {
+			mountConfig["domain"] = bindOptions.Domain
 		}
-
-		logger.Info("retrieve-file-share", lager.Data{"message": fmt.Sprintf("%s does not exist", fileShareID)})
-		fileShare = FileShare{
-			InstanceID:      instanceID,
-			FileShareName:   fileShareName,
-			IsCreated:       false,
-			Count:           0,
-			URL:             "",
-			DatabaseVersion: databaseVersion,
-		}
-		err = nil
-	}
-	storageAccount, err := b.handleBindShare(logger, &serviceInstance, &fileShare)
-	if err != nil {
-		return brokerapi.Binding{}, err
-	}
-
-	if fileShare.Count == 1 {
-		logger.Info("inserting-file-share-into-store", lager.Data{"fileShare": fileShare})
-		if err := b.store.CreateFileShare(fileShareID, fileShare); err != nil {
-			err = fmt.Errorf("Faied to insert file share into the store for %q: %v", fileShareID, err)
-			logger.Error("insert-file-share-into-store", err)
-			return brokerapi.Binding{}, err
-		}
-		logger.Info("inserted-file-share-into-store", lager.Data{"fileShare": fileShare})
+		source = serviceInstance.TargetName
+		username = bindOptions.Username
+		password = bindOptions.Password
 	} else {
-		logger.Info("updating-file-share-in-store", lager.Data{"fileShare": fileShare})
-		if err := b.store.UpdateFileShare(fileShareID, fileShare); err != nil {
-			err = fmt.Errorf("Faied to update file share in the store for %q: %v", fileShareID, err)
-			logger.Error("update-file-share-in-store", err)
+		// Bind for AzureFileShare
+		fileShareName := bindOptions.FileShareName
+
+		fileShareID := getFileShareID(instanceID, fileShareName)
+		err = b.store.GetLockForUpdate(fileShareID, lockTimeoutInSeconds)
+		if err != nil {
+			logger.Error("get-lock-for-update", err)
 			return brokerapi.Binding{}, err
 		}
-		logger.Info("updated-file-share-in-store", lager.Data{"fileShare": fileShare})
+		defer b.store.ReleaseLockForUpdate(fileShareID)
+
+		fileShare, err := b.store.RetrieveFileShare(fileShareID)
+		if err != nil {
+			if err != brokerapi.ErrInstanceDoesNotExist {
+				logger.Error("retrieve-file-share", err)
+				return brokerapi.Binding{}, err
+			}
+
+			logger.Info("retrieve-file-share", lager.Data{"message": fmt.Sprintf("%s does not exist", fileShareID)})
+			fileShare = FileShare{
+				InstanceID:      instanceID,
+				FileShareName:   fileShareName,
+				IsCreated:       false,
+				Count:           0,
+				URL:             "",
+				DatabaseVersion: databaseVersion,
+			}
+			err = nil
+		}
+		storageAccount, err := b.handleBindShare(logger, &serviceInstance, &fileShare)
+		if err != nil {
+			return brokerapi.Binding{}, err
+		}
+
+		if fileShare.Count == 1 {
+			logger.Info("inserting-file-share-into-store", lager.Data{"fileShare": fileShare})
+			if err := b.store.CreateFileShare(fileShareID, fileShare); err != nil {
+				err = fmt.Errorf("Faied to insert file share into the store for %q: %v", fileShareID, err)
+				logger.Error("insert-file-share-into-store", err)
+				return brokerapi.Binding{}, err
+			}
+			logger.Info("inserted-file-share-into-store", lager.Data{"fileShare": fileShare})
+		} else {
+			logger.Info("updating-file-share-in-store", lager.Data{"fileShare": fileShare})
+			if err := b.store.UpdateFileShare(fileShareID, fileShare); err != nil {
+				err = fmt.Errorf("Faied to update file share in the store for %q: %v", fileShareID, err)
+				logger.Error("update-file-share-in-store", err)
+				return brokerapi.Binding{}, err
+			}
+			logger.Info("updated-file-share-in-store", lager.Data{"fileShare": fileShare})
+		}
+
+		source = fileShare.URL
+		username = serviceInstance.TargetName
+		password, err = storageAccount.SDKClient.GetAccessKey()
+		if err != nil {
+			return brokerapi.Binding{}, err
+		}
 	}
 
-	err = b.store.CreateBindingDetails(bindingID, details)
+	err = b.store.CreateBindingDetails(bindingID, details, serviceInstance.IsPreexisting)
 	if err != nil {
 		logger.Error("create-binding-details", err)
 		return brokerapi.Binding{}, err
@@ -477,11 +587,9 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 
 	logger.Info("binding-details-created")
 
-	mountConfig := globalMountConfig.MakeConfig()
-	mountConfig["source"] = fileShare.URL
-	mountConfig["username"] = serviceInstance.StorageAccountName
-
-	logger.Debug("volume-service-binding", lager.Data{"driver": "azurefiledriver", "mountConfig": mountConfig, "share": fileShare})
+	mountConfig["source"] = source
+	mountConfig["username"] = username
+	logger.Debug("volume-service-binding", lager.Data{"driver": "smbdriver", "mountConfig": mountConfig, "source": source})
 
 	s, err := b.hash(mountConfig)
 	if err != nil {
@@ -489,11 +597,9 @@ func (b *Broker) Bind(context context.Context, instanceID string, bindingID stri
 		return brokerapi.Binding{}, err
 	}
 
-	mountConfig["password"], err = storageAccount.SDKClient.GetAccessKey()
-	if err != nil {
-		return brokerapi.Binding{}, err
+	if password != "" {
+		mountConfig["password"] = password
 	}
-
 	volumeID := fmt.Sprintf("%s-%s", instanceID, s)
 
 	ret := brokerapi.Binding{
@@ -523,7 +629,7 @@ func (b *Broker) handleBindShare(logger lager.Logger, serviceInstance *ServiceIn
 		Configuration{
 			SubscriptionID:     serviceInstance.SubscriptionID,
 			ResourceGroupName:  serviceInstance.ResourceGroupName,
-			StorageAccountName: serviceInstance.StorageAccountName,
+			StorageAccountName: serviceInstance.TargetName,
 			UseHTTPS:           serviceInstance.UseHTTPS,
 		})
 	if err != nil {
@@ -597,55 +703,56 @@ func (b *Broker) Unbind(context context.Context, instanceID string, bindingID st
 		logger.Error("retrieve-service-instance", err)
 		return brokerapi.ErrInstanceDoesNotExist
 	}
-
 	bindDetails, err := b.store.RetrieveBindingDetails(bindingID)
 	if err != nil {
 		logger.Error("retrieve-binding-details", err)
 		return brokerapi.ErrBindingDoesNotExist
 	}
 
-	var bindOptions BindOptions
-	var decoder = json.NewDecoder(bytes.NewBuffer(bindDetails.RawParameters))
-	if err := decoder.Decode(&bindOptions); err != nil {
-		logger.Error("decode-bind-raw-parameters", err)
-		return brokerapi.ErrRawParamsInvalid
-	}
-	fileShareName := bindOptions.FileShareName
+	if !serviceInstance.IsPreexisting {
+		var bindOptions BindOptions
+		var decoder = json.NewDecoder(bytes.NewBuffer(bindDetails.RawParameters))
+		if err := decoder.Decode(&bindOptions); err != nil {
+			logger.Error("decode-bind-raw-parameters", err)
+			return brokerapi.ErrRawParamsInvalid
+		}
+		fileShareName := bindOptions.FileShareName
 
-	fileShareID := getFileShareID(instanceID, fileShareName)
-	err = b.store.GetLockForUpdate(fileShareID, lockTimeoutInSeconds)
-	if err != nil {
-		logger.Error("get-lock-for-update", err)
-		return err
-	}
-	defer b.store.ReleaseLockForUpdate(fileShareID)
-
-	fileShare, err := b.store.RetrieveFileShare(fileShareID)
-	if err != nil {
-		logger.Error("retrieve-file-share", err)
-		return err
-	}
-
-	if err := b.handleUnbindShare(logger, &serviceInstance, &fileShare); err != nil {
-		return err
-	}
-
-	if fileShare.Count > 0 {
-		logger.Debug("updating-file-share-in-store", lager.Data{"fileShare": fileShare})
-		if err := b.store.UpdateFileShare(fileShareID, fileShare); err != nil {
-			err = fmt.Errorf("Faied to update file share in the store for %q: %v", fileShareID, err)
-			logger.Error("update-file-share-in-store", err)
+		fileShareID := getFileShareID(instanceID, fileShareName)
+		err = b.store.GetLockForUpdate(fileShareID, lockTimeoutInSeconds)
+		if err != nil {
+			logger.Error("get-lock-for-update", err)
 			return err
 		}
-		logger.Debug("updated-file-share-in-store", lager.Data{"fileShare": fileShare})
-	} else {
-		logger.Debug("deleting-file-share-from-store", lager.Data{"fileShare": fileShare})
-		if err := b.store.DeleteFileShare(fileShareID); err != nil {
-			err = fmt.Errorf("Faied to delete file share from the store for %q: %v", fileShareID, err)
-			logger.Error("delete-file-share-from-store", err)
+		defer b.store.ReleaseLockForUpdate(fileShareID)
+
+		fileShare, err := b.store.RetrieveFileShare(fileShareID)
+		if err != nil {
+			logger.Error("retrieve-file-share", err)
 			return err
 		}
-		logger.Debug("deleted-file-share-from-store", lager.Data{"fileShare": fileShare})
+
+		if err := b.handleUnbindShare(logger, &serviceInstance, &fileShare); err != nil {
+			return err
+		}
+
+		if fileShare.Count > 0 {
+			logger.Debug("updating-file-share-in-store", lager.Data{"fileShare": fileShare})
+			if err := b.store.UpdateFileShare(fileShareID, fileShare); err != nil {
+				err = fmt.Errorf("Faied to update file share in the store for %q: %v", fileShareID, err)
+				logger.Error("update-file-share-in-store", err)
+				return err
+			}
+			logger.Debug("updated-file-share-in-store", lager.Data{"fileShare": fileShare})
+		} else {
+			logger.Debug("deleting-file-share-from-store", lager.Data{"fileShare": fileShare})
+			if err := b.store.DeleteFileShare(fileShareID); err != nil {
+				err = fmt.Errorf("Faied to delete file share from the store for %q: %v", fileShareID, err)
+				logger.Error("delete-file-share-from-store", err)
+				return err
+			}
+			logger.Debug("deleted-file-share-from-store", lager.Data{"fileShare": fileShare})
+		}
 	}
 
 	if err := b.store.DeleteBindingDetails(bindingID); err != nil {
@@ -671,7 +778,7 @@ func (b *Broker) handleUnbindShare(logger lager.Logger, serviceInstance *Service
 			Configuration{
 				SubscriptionID:     serviceInstance.SubscriptionID,
 				ResourceGroupName:  serviceInstance.ResourceGroupName,
-				StorageAccountName: serviceInstance.StorageAccountName,
+				StorageAccountName: serviceInstance.TargetName,
 				UseHTTPS:           serviceInstance.UseHTTPS,
 			})
 		if err != nil {
@@ -687,7 +794,7 @@ func (b *Broker) handleUnbindShare(logger lager.Logger, serviceInstance *Service
 		}
 
 		if err := storageAccount.SDKClient.DeleteFileShare(share.FileShareName); err != nil {
-			return fmt.Errorf("Faied to delete the file share %q in the storage account %q: %v", share.FileShareName, serviceInstance.StorageAccountName, err)
+			return fmt.Errorf("Faied to delete the file share %q in the storage account %q: %v", share.FileShareName, serviceInstance.TargetName, err)
 		}
 	}
 
@@ -716,12 +823,17 @@ func (b *Broker) LastOperation(_ context.Context, instanceID string, operationDa
 		logger.Error("retrieve-service-instance", err)
 		return brokerapi.LastOperation{}, err
 	}
+
+	if serviceInstance.IsPreexisting {
+		return brokerapi.LastOperation{}, errors.New("LastOperation cannot be called for preexisting shares")
+	}
+
 	storageAccount, err := NewStorageAccount(
 		logger,
 		Configuration{
 			SubscriptionID:     serviceInstance.SubscriptionID,
 			ResourceGroupName:  serviceInstance.ResourceGroupName,
-			StorageAccountName: serviceInstance.StorageAccountName,
+			StorageAccountName: serviceInstance.TargetName,
 			UseHTTPS:           serviceInstance.UseHTTPS,
 		})
 	if err != nil {

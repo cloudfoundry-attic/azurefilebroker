@@ -104,7 +104,7 @@ var Environments = map[string]Environment{
 	},
 }
 
-//go:generate counterfeiter -o azurefilebrokerfakes/fake_azure_storage_account_sdk_client.go . AzureStorageAccountSDKClient
+//go:generate counterfeiter -o ../azurefilebrokerfakes/fake_azure_storage_account_sdk_client.go . AzureStorageAccountSDKClient
 type AzureStorageAccountSDKClient interface {
 	Exists() (bool, error)
 	GetAccessKey() (string, error)
@@ -115,7 +115,7 @@ type AzureStorageAccountSDKClient interface {
 	GetShareURL(fileShareName string) (string, error)
 }
 
-//go:generate counterfeiter -o azurefilebrokerfakes/fake_azure_storage_account_rest_client.go . AzureStorageAccountRESTClient
+//go:generate counterfeiter -o ../azurefilebrokerfakes/fake_azure_storage_account_rest_client.go . AzureStorageAccountRESTClient
 type AzureStorageAccountRESTClient interface {
 	CreateStorageAccount() (string, error)
 	CheckCompletion(asyncURL string) (bool, error)

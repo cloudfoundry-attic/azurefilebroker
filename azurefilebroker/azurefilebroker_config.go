@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const preexisting = "Preexisting"
+
 type MountConfig struct {
 	Allowed []string
 
@@ -36,7 +38,15 @@ func NewAzureConfig(environment, tenanID, clientID, clientSecret, defaultSubscri
 	return myConf
 }
 
+func (config *AzureConfig) IsSupportAzureFileShare() bool {
+	return config.Environment != preexisting
+}
+
 func (config *AzureConfig) Validate() error {
+	if !config.IsSupportAzureFileShare() {
+		return nil
+	}
+
 	missingKeys := []string{}
 	if config.Environment == "" {
 		missingKeys = append(missingKeys, "environment")

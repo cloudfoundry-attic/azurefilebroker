@@ -94,11 +94,14 @@ func (c *mysqlVariant) GetInitializeDatabaseSQL() []string {
 	return []string{
 		`CREATE TABLE IF NOT EXISTS service_instances(
 			id VARCHAR(255) PRIMARY KEY,
+			service_id VARCHAR(255),
+			plan_id VARCHAR(255),
 			organization_guid VARCHAR(255),
 			space_guid VARCHAR(255),
-			storage_account_name VARCHAR(255),
+			target_name VARCHAR(4096),
+			hash_key VARCHAR(255),
 			value VARCHAR(4096),
-			CONSTRAINT storage_account UNIQUE (organization_guid, space_guid, storage_account_name)
+			UNIQUE (hash_key)
 		)`,
 		`CREATE TABLE IF NOT EXISTS service_bindings(
 			id VARCHAR(255) PRIMARY KEY,
