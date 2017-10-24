@@ -229,8 +229,17 @@ func parseCommandLine() {
 }
 
 func parseEnvironment() {
-	username, _ = os.LookupEnv("USERNAME")
-	password, _ = os.LookupEnv("PASSWORD")
+	var ok bool
+	username, ok = os.LookupEnv("USERNAME")
+	if !ok {
+		// To support automatic broker registration with the Cloud Controller
+		username, _ = os.LookupEnv("SECURITY_USER_NAME")
+	}
+	password, ok = os.LookupEnv("PASSWORD")
+	if !ok {
+		// To support automatic broker registration with the Cloud Controller
+		password, _ = os.LookupEnv("SECURITY_USER_PASSWORD")
+	}
 	dbUsername, _ = os.LookupEnv("DBUSERNAME")
 	dbPassword, _ = os.LookupEnv("DBPASSWORD")
 }
@@ -239,6 +248,10 @@ func checkParams() {
 	if *dbDriver == "" {
 		fmt.Fprint(os.Stderr, "\nERROR: dbDriver parameter is required.\n\n")
 		flag.Usage()
+		os.Exit(1)
+	}
+	if username == "" || password == "" {
+		fmt.Fprint(os.Stderr, "\nERROR: Both USERNAME and PASSWORD environment are required.\n\n")
 		os.Exit(1)
 	}
 }
