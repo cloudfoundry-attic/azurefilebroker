@@ -1,8 +1,8 @@
 package azurefilebroker_test
 
 import (
-	"github.com/cloudfoundry/azurefilebroker/azurefilebroker"
-	"github.com/cloudfoundry/azurefilebroker/azurefilebrokerfakes"
+	"code.cloudfoundry.org/azurefilebroker/azurefilebroker"
+	"code.cloudfoundry.org/azurefilebroker/azurefilebrokerfakes"
 
 	"errors"
 	"time"

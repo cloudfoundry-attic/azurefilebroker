@@ -4,7 +4,7 @@ package azurefilebrokerfakes
 import (
 	"sync"
 
-	"github.com/cloudfoundry/azurefilebroker/azurefilebroker"
+	"code.cloudfoundry.org/azurefilebroker/azurefilebroker"
 )
 
 type FakeAzureStorageAccountRESTClient struct {

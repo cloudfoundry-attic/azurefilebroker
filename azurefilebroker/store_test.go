@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 
+	"code.cloudfoundry.org/azurefilebroker/azurefilebroker"
+	"code.cloudfoundry.org/azurefilebroker/azurefilebrokerfakes"
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
-	"github.com/cloudfoundry/azurefilebroker/azurefilebroker"
-	"github.com/cloudfoundry/azurefilebroker/azurefilebrokerfakes"
 	"github.com/pivotal-cf/brokerapi"
 
 	"database/sql"

@@ -4,8 +4,8 @@ package azurefilebrokerfakes
 import (
 	"sync"
 
+	"code.cloudfoundry.org/azurefilebroker/azurefilebroker"
 	"code.cloudfoundry.org/goshims/sqlshim"
-	"github.com/cloudfoundry/azurefilebroker/azurefilebroker"
 )
 
 type FakeSqlVariant struct {
