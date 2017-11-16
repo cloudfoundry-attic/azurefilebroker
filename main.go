@@ -90,7 +90,7 @@ var dbCACert = flag.String(
 // Bind
 var allowedOptions = flag.String(
 	"allowedOptions",
-	"share,uid,gid,file_mode,dir_mode,readonly,vers,mount,domain,username,password,sec",
+	"share,file_mode,dir_mode,readonly,vers,mount,domain,username,password,sec",
 	"A comma separated list of parameters allowed to be set in during bind operations",
 )
 
@@ -212,8 +212,8 @@ func main() {
 
 	if dbgAddr := debugserver.DebugAddress(flag.CommandLine); dbgAddr != "" {
 		server = utils.ProcessRunnerFor(grouper.Members{
-			{"debug-server", debugserver.Runner(dbgAddr, logSink)},
-			{"broker-api", server},
+			{Name: "debug-server", Runner: debugserver.Runner(dbgAddr, logSink)},
+			{Name: "broker-api", Runner: server},
 		})
 	}
 
