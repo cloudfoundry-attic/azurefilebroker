@@ -241,8 +241,8 @@ func parseEnvironment() {
 		// To support automatic broker registration with the Cloud Controller
 		password, _ = os.LookupEnv("SECURITY_USER_PASSWORD")
 	}
-	dbUsername, _ = os.LookupEnv("DBUSERNAME")
-	dbPassword, _ = os.LookupEnv("DBPASSWORD")
+	dbUsername, _ = os.LookupEnv("DB_USERNAME")
+	dbPassword, _ = os.LookupEnv("DB_PASSWORD")
 }
 
 func checkParams() {
