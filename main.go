@@ -18,6 +18,7 @@ import (
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
 	"github.com/tedsuo/ifrit/http_server"
+	"io/ioutil"
 )
 
 var atAddress = flag.String(
@@ -81,10 +82,10 @@ var hostNameInCertificate = flag.String(
 	"(optional) - The Common Name (CN) in the server certificate. For Azure SQL service or Azure MySQL service, please see more details in README.md",
 )
 
-var dbCACert = flag.String(
-	"dbCACert",
+var dbCACertPath = flag.String(
+	"dbCACertPath",
 	"",
-	"(optional) - CA Cert to verify SSL connection.",
+	"(optional) Path to CA Cert for database SSL connection",
 )
 
 // Bind
@@ -292,7 +293,26 @@ func createServer(logger lager.Logger) ifrit.Runner {
 		parseVcapServices(logger)
 	}
 
-	store := azurefilebroker.NewStore(logger, *dbDriver, dbUsername, dbPassword, *dbHostname, *dbPort, *dbName, *dbCACert, *hostNameInCertificate)
+	var dbCACert string
+	if *dbCACertPath != "" {
+		b, err := ioutil.ReadFile(*dbCACertPath)
+		if err != nil {
+			logger.Fatal("cannot-read-db-ca-cert", err, lager.Data{"path": *dbCACertPath})
+		}
+		dbCACert = string(b)
+	}
+
+	store := azurefilebroker.NewStore(
+		logger,
+		*dbDriver,
+		dbUsername,
+		dbPassword,
+		*dbHostname,
+		*dbPort,
+		*dbName,
+		dbCACert,
+		*hostNameInCertificate,
+	)
 
 	mount := azurefilebroker.NewAzurefilebrokerMountConfig()
 	mount.ReadConf(*allowedOptions, *defaultOptions)
