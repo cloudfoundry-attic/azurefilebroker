@@ -8,8 +8,6 @@ import (
 
 	"code.cloudfoundry.org/azurefilebroker/azurefilebroker"
 	"code.cloudfoundry.org/azurefilebroker/azurefilebrokerfakes"
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
 	"github.com/pivotal-cf/brokerapi"
 
 	"database/sql"
@@ -24,8 +22,6 @@ import (
 
 var _ = Describe("Store", func() {
 	var (
-		store                                                     azurefilebroker.Store
-		logger                                                    lager.Logger
 		fakeSqlDb                                                 = &sql_fake.FakeSqlDB{}
 		fakeVariant                                               = &azurefilebrokerfakes.FakeSqlVariant{}
 		err                                                       error
@@ -48,11 +44,9 @@ var _ = Describe("Store", func() {
 			`CREATE TABLE service_bindings(...)`,
 			`CREATE TABLE file_shares(...)`,
 		}
-		logger = lagertest.NewTestLogger("test-broker")
 		fakeVariant.ConnectReturns(fakeSqlDb, nil)
 		fakeVariant.GetInitializeDatabaseSQLReturns(createTablesSQL)
 		storeType = "mssql"
-		store, err = azurefilebroker.NewStoreWithVariant(logger, storeType, fakeVariant)
 		Expect(err).ToNot(HaveOccurred())
 		db, mock, err = sqlmock.New()
 		Expect(err).ToNot(HaveOccurred())
