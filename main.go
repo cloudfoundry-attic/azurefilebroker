@@ -14,11 +14,12 @@ import (
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagerflags"
 
+	"io/ioutil"
+
 	"github.com/pivotal-cf/brokerapi"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
 	"github.com/tedsuo/ifrit/http_server"
-	"io/ioutil"
 )
 
 var atAddress = flag.String(

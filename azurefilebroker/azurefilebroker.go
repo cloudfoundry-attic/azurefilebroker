@@ -216,7 +216,7 @@ func (b *Broker) isSupportAzureFileShare() bool {
 	return b.config.cloud.Azure.IsSupportAzureFileShare()
 }
 
-func (b *Broker) Services(_ context.Context) []brokerapi.Service {
+func (b *Broker) Services(_ context.Context) ([]brokerapi.Service, error) {
 	logger := b.logger.Session("services")
 	logger.Info("start")
 	defer logger.Info("end")
@@ -254,7 +254,7 @@ func (b *Broker) Services(_ context.Context) []brokerapi.Service {
 		Tags:          []string{"azurefile", "smb"},
 		Requires:      []brokerapi.RequiredPermission{permissionVolumeMount},
 		Plans:         plans,
-	}}
+	}}, nil
 }
 
 // Provision Create a service instance which is mapped to a storage account or preexisting shares
