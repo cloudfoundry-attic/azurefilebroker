@@ -1,8 +1,7 @@
 ---
 applications:
 - name: azurefilebroker
-  buildpacks:
-  - binary_buildpack
+  buildpack: binary_buildpack
   env:
   env:
     LOGLEVEL: info                       # Log level: error, warn, info, debug
