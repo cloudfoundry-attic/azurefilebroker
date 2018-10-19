@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"code.cloudfoundry.org/azurefilebroker/azurefilebroker"
@@ -13,9 +14,6 @@ import (
 	"code.cloudfoundry.org/debugserver"
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagerflags"
-
-	"io/ioutil"
-
 	"github.com/pivotal-cf/brokerapi"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
@@ -202,11 +200,7 @@ func main() {
 
 	checkParams()
 
-	sink, err := lager.NewRedactingWriterSink(os.Stdout, lager.INFO, nil, nil)
-	if err != nil {
-		panic(err)
-	}
-	logger, logSink := lagerflags.NewFromSink("azurefilebroker", sink)
+	logger, logSink := newLogger()
 	logger.Info("starting")
 	defer logger.Info("end")
 
@@ -256,6 +250,13 @@ func checkParams() {
 		fmt.Fprint(os.Stderr, "\nERROR: Both USERNAME and PASSWORD environment are required.\n\n")
 		os.Exit(1)
 	}
+}
+
+func newLogger() (lager.Logger, *lager.ReconfigurableSink) {
+	lagerConfig := lagerflags.ConfigFromFlags()
+	lagerConfig.RedactSecrets = true
+
+	return lagerflags.NewFromConfig("azurefilebroker", lagerConfig)
 }
 
 func parseVcapServices(logger lager.Logger) {
