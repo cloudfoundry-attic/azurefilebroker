@@ -1,5 +1,9 @@
 ---
-  buildpack: binary_buildpack
+applications:
+- name: azurefilebroker
+  buildpacks:
+  - binary_buildpack
+  env:
   env:
     LOGLEVEL: info                       # Log level: error, warn, info, debug
     SERVICENAME: smbvolume               # Service name to publish in the marketplace
