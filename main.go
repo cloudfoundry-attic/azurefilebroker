@@ -284,9 +284,17 @@ func parseVcapServices(logger lager.Logger) {
 
 	dbUsername = credentials["username"].(string)
 	dbPassword = credentials["password"].(string)
-	*dbHostname = credentials["hostname"].(string)
+	if credentials["hostname"] != nil {
+		*dbHostname = credentials["hostname"].(string)
+	} else {
+		*dbHostname = credentials["host"].(string)
+	}
 	*dbPort = fmt.Sprintf("%.0f", credentials["port"].(float64))
-	*dbName = credentials["name"].(string)
+	if credentials["name"] != nil {
+		*dbName = credentials["name"].(string)
+	} else {
+		*dbName = credentials["database"].(string)
+	}
 }
 
 func createServer(logger lager.Logger) ifrit.Runner {
